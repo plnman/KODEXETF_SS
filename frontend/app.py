@@ -63,8 +63,14 @@ with tab2:
             metrics4.metric("Probability of Ruin (파산 확률)", "0.01 %", "-0.05%")
             
             st.subheader("📈 Equity Curve (누적 수익 곡선)")
-            chart_data = pd.DataFrame(np.random.randn(200, 1) / 100 + 0.005, columns=["Returns"]).cumsum()
-            st.line_chart(chart_data)
+            chart_data = np.random.randn(200, 1) / 100 + 0.005
+            cum_returns = pd.DataFrame(chart_data, columns=["Returns"]).cumsum()
+            
+            fig2, ax2 = plt.subplots(figsize=(8, 3))
+            ax2.plot(cum_returns, color='blue', linewidth=1.5)
+            ax2.set_title("Simulated Equity Curve")
+            ax2.grid(True, linestyle='--', alpha=0.5)
+            st.pyplot(fig2)
 
 # [Tab 3] 실시간 텔레그램 시그널 연동 프리뷰
 with tab3:
