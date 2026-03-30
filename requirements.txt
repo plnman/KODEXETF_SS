@@ -1,8 +1,7 @@
-﻿supabase
+supabase
 yfinance
 pandas
 python-dotenv
-pandas-ta
 matplotlib
 seaborn
 requests
