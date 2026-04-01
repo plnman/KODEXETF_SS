@@ -64,6 +64,11 @@ def load_and_process_data_v3_1():
         
         if df_clean.empty: continue
             
+        # [복구] 수급 지표 계산 (strategy.py 연동용)
+        df_upper = df_clean.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
+        df_clean['mfi'] = calculate_mfi(df_upper)
+        df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
+        
         # 개별 종목 시그널 생성 (시장 레짐 벡터 주입)
         ticker_signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
         all_signals[name] = ticker_signals
