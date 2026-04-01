@@ -2,8 +2,7 @@ import pandas as pd
 import numpy as np
 
 # -------------------------------------------------------------------------------------
-# [FINAL SPEC] KODEX IRP 무결성 매매 엔진 전용: 종목별 팩터 매핑 딕셔너리 (Parameter Profiling)
-# 종목 고유의 변동성(Beta)과 주포의 핸들링 특성을 반영하여 개별 최적화된 파라미터입니다.
+# [V3.1.2 INTEGRITY ENGINE] EMERGENCY RECOVERY SYNC (2026-04-01 16:40) 🕋🚀
 # -------------------------------------------------------------------------------------
 TICKER_PARAMS = {
     "KODEX 200": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
