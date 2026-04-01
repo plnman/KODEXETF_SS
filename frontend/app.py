@@ -27,7 +27,7 @@ V3_1_PARAMS = {
 }
 
 @st.cache_data(ttl=3600)
-def load_and_process_data_v3_1():
+def load_and_process_data_v3_1_2():
     tickers_list = list(TARGET_ETFS.keys())
     data = yf.download(tickers_list, start="2019-01-01", progress=False)
     
@@ -93,10 +93,10 @@ def main():
 
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.2)")
     
-    with st.spinner("데이터 동기화 및 V3.1 지능형 레짐 분석 중..."):
-        all_signals, is_bull_now = load_and_process_data_v3_1()
+    with st.spinner("데이터 동기화 및 V3.1.2 지능형 레짐 분석 중..."):
+        all_signals, is_bull_now = load_and_process_data_v3_1_2()
         
     if not all_signals:
         st.error("데이터 로딩에 실패했습니다.")
@@ -117,8 +117,13 @@ def main():
     with tab1:
         st.header(f"🎯 오늘의 AI 매매 권고 (TOP {max_tickers} 주도주)")
         
-        # [무결성 보정] Composite RS 순위 추출 (추세 필터 적용)
-        top_indices = sorted([(n, d['composite_rs'].iloc[-1]) for n, d in all_signals.items()], key=lambda x: x[1], reverse=True)[:max_tickers]
+        # [무결성 보정] Composite RS 순위 추출 (추세 필터 적용) - 컬럼 누락 대비 방어 로직 포함
+        valid_signals = []
+        for n, d in all_signals.items():
+            if 'composite_rs' in d.columns:
+                valid_signals.append((n, d['composite_rs'].iloc[-1]))
+        
+        top_indices = sorted(valid_signals, key=lambda x: x[1], reverse=True)[:max_tickers]
         
         # [NEW] 그리드 레이아웃 적용 (가공되지 않은 원칙 중심 노출)
         cols_per_row = 3
