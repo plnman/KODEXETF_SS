@@ -91,10 +91,12 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 5000
 
         # [3] 스크리닝 (주도주 필터링) - [가변 종목 수 지원]
         if is_friday or t_idx == 0:
+            # [V3.1.2] 신규모드: composite_rs 우선 순위, 없을 경우 rs_20 사용
             rs_scores = {}
             for ticker, row in today_rows.items():
-                if 'rs_20' in row and not pd.isna(row['rs_20']):
-                    rs_scores[ticker] = row['rs_20']
+                score_col = 'composite_rs' if 'composite_rs' in row else 'rs_20'
+                if score_col in row and not pd.isna(row[score_col]):
+                    rs_scores[ticker] = row[score_col]
             sorted_tickers = sorted(rs_scores.items(), key=lambda x: x[1], reverse=True)
             # 인자로 전달받은 max_tickers 수만큼 슬라이싱
             current_target_tickers = [x[0] for x in sorted_tickers[:max_tickers]]

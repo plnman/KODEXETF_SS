@@ -5,16 +5,16 @@ import numpy as np
 # [V3.1.2 INTEGRITY ENGINE] EMERGENCY RECOVERY SYNC (2026-04-01 16:40) 🕋🚀
 # -------------------------------------------------------------------------------------
 TICKER_PARAMS = {
-    "KODEX 200": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
-    "KODEX 코스닥150": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 반도체": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 은행": {'k': 0.7, 'mfi': 65, 'adx_threshold': 20},
-    "KODEX 자동차": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 2차전지산업": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 건설": {'k': 0.4, 'mfi': 60, 'adx_threshold': 15},
-    "KODEX 금융": {'k': 0.5, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 기계장비": {'k': 0.7, 'mfi': 65, 'adx_threshold': 15},
-    "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
+    "KODEX 200": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 코스닥150": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 반도체": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 은행": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 자동차": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 2차전지산업": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 건설": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 금융": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 기계장비": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
+    "KODEX 철강": {'k': 0.4, 'mfi': 55, 'adx_threshold': 15},
 }
 
 # 공통 하드 스탑 방벽 (과도한 5일선 칼손절 방지를 위해 3.0 유지)
