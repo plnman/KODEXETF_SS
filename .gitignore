@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+*.txt
+*.bat
+*.sh
+.DS_Store
+node_modules/
+.vscode/
+.gemini/

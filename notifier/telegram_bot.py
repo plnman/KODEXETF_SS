@@ -1,75 +1,99 @@
 import os
 import requests
+import yfinance as yf
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from io import BytesIO
-from typing import Optional
+from datetime import datetime
+from dotenv import load_dotenv
+import sys
 
-# 시스템이나 서버 환경에 등록된 토큰을 읽어옵니다. (없어도 에러 없이 스킵되도록 설계)
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+# 코어 엔진 폴더를 참조하기 위해 path 삽입
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from engine.strategy import build_signals_and_targets
+from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS
+from engine.screener import get_top_sectors_for_week
 
-def generate_cvd_heatmap(cvd_data: pd.DataFrame) -> BytesIO:
-    """
-    [CVD Heatmap Preview 기능]
-    당일 장중 체결 강도(L3 CVD 점수)를 시간대별/종목별 히트맵 이미지로 자동 렌더링하고
-    메모리 버퍼(BytesIO)에 담아 즉시 반환합니다. (로컬 서버에 파일 다운로드 없이 즉각 전송)
-    """
-    # 텔레그램 예시 전송을 위해, 만약 데이터가 비어있다면 가상의 수급 집중도 샘플 생성
-    if cvd_data is None or cvd_data.empty:
-        import numpy as np
-        # 가상의 -100 ~ 100 사이 체결 강도 압력
-        data = np.random.randn(4, 5) * 50
-        cvd_data = pd.DataFrame(data, columns=['09:30', '11:00', '13:00', '14:30', '15:20'])
-        cvd_data.index = ['KODEX Lev', 'KODEX Inv', 'KODEX 200', 'TIGER Bio']
+def send_telegram_message(message: str):
+    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
-    plt.figure(figsize=(7, 4))
-    # 빨강(매도 우위) -> 노랑(보합) -> 초록(매수 우위) 그라데이션 적용
-    sns.heatmap(cvd_data, annot=True, cmap="RdYlGn", center=0, fmt=".0f")
-    plt.title("Intraday L3 CVD Heatmap (Real-time Supply Concentration)")
-    plt.tight_layout()
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-    plt.close()
-    
-    return buf
-
-def send_telegram_signal(ticker: str, signal_type: str, reason: str, cvd_data: Optional[pd.DataFrame] = None):
-    """
-    장 종료 직후, 익일(T+1) 시가에 대한 매수/매도 제안과 그 확실한 근거를 텔레그램으로 발송합니다.
-    사용자 요구사항에 따라, 당일 수급 집중도 히트맵 이미지까지 생성하여 함께 전송합니다.
-    """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("[Notifier] 텔레그램 활성화 토큰 정보가 불충분하여 알림 전송을 생략합니다.")
+    if not bot_token or not chat_id:
+        print("Telegram Token이 .env 에 설정되지 않아 발송이 스킵되었습니다.")
         return
         
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    
-    # 1. 텍스트 시그널 뷰 완성
-    text = (
-        f"🚨 **[KODEX 안티그래비티 신호 감지]** 🚨\n\n"
-        f"📌 **대상 종목:** {ticker}\n"
-        f"🎯 **AI 제안:** 내일 시가 무조건 **{signal_type.upper()}**\n"
-        f"📝 **판단 근거:** {reason}\n"
-    )
-    
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"}
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'}
     try:
-        requests.post(url, json=payload)
+        response = requests.post(url, data=payload)
+        response.raise_for_status()
+        print("✅ 텔레그램 수동 매매 지시서 발송 성공")
     except Exception as e:
-        print(f"[Notifier] 텍스트 메시지 API 전송 중 오류 발생: {e}")
+        print(f"❌ 텔레그램 발송 실패: {e}")
+
+def scrape_and_notify():
+    load_dotenv()
+    print("수동 매매 텔레그램 시그널 봇 구동 중...")
+    
+    tickers_list = list(TARGET_ETFS.keys())
+    data = yf.download(tickers_list, start="2023-01-01", progress=False) 
+    
+    all_signals = {}
+    for raw_ticker, name in TARGET_ETFS.items():
+        df_clean = pd.DataFrame()
+        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+            if (col, raw_ticker) in data.columns:
+                df_clean[col.lower()] = data[(col, raw_ticker)]
+            elif col in data.columns and len(tickers_list) == 1:
+                df_clean[col.lower()] = data[col]
+        if df_clean.empty: continue
+            
+        df_clean = df_clean.dropna().reset_index()
+        df_clean['date'] = df_clean['Date'].dt.strftime('%Y-%m-%d')
+        df_upper = df_clean.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
+        df_clean['mfi'] = calculate_mfi(df_upper)
+        df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
+        df_clean = df_clean.dropna().reset_index(drop=True)
+        all_signals[name] = build_signals_and_targets(df_clean, ticker_name=name)
+
+    today_date = max(df['date'].max() for df in all_signals.values())
+    top_3_with_scores = get_top_sectors_for_week(all_signals, today_date)
+    top_3_names = [x[0] for x in top_3_with_scores]
+    
+    msg_lines = [
+        "<b>🔥 [KODEX IRP 매매 시그널 브리핑]</b>\n",
+        f"📅 데이터 스크랩 기준일: {today_date}\n",
+        f"🏆 <b>금주 실전 주도 섹터 (Top 3):</b>",
+        f"1위. {top_3_with_scores[0][0]} (수익률 방어 기반 RS: {top_3_with_scores[0][1]*100:.1f}%)",
+        f"2위. {top_3_with_scores[1][0]} (수익률 방어 기반 RS: {top_3_with_scores[1][1]*100:.1f}%)",
+        f"3위. {top_3_with_scores[2][0]} (수익률 방어 기반 RS: {top_3_with_scores[2][1]*100:.1f}%)\n"
+    ]
+    
+    buy_signals = []
+    sell_signals = []
+    
+    for name, df in all_signals.items():
+        if df.empty: continue
+        last_row = df.iloc[-1]
+        if last_row['date'] != today_date: continue
         
-    # 2. CVD 히트맵 이미지 프리뷰 전송 (Visual Insight 기능)
-    if cvd_data is not None:
-        try:
-            photo_buf = generate_cvd_heatmap(cvd_data)
-            photo_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
-            files = {'photo': ('cvd_heatmap.png', photo_buf, 'image/png')}
-            data = {'chat_id': TELEGRAM_CHAT_ID, 'caption': f"📊 [{ticker}] 당일 수급 집중도 (L3 CVD Heatmap Preview)"}
-            requests.post(photo_url, data=data, files=files)
-            print(f"[Notifier] {ticker} 히트맵 전송 성공.")
-        except Exception as e:
-            print(f"[Notifier] 히트맵 이미지 생성 및 전송 오류: {e}")
+        if name in top_3_names and last_row['buy_signal_T']:
+            buy_signals.append(f"🟢 <b>[매수 지시] {name}</b>\n - <ins>사유:</ins> 돌파 타점/수급(MFI: {last_row['mfi']:.1f}) 통과 및 횡보장 회피 검증(ADX: {last_row['adx_14']:.1f})\n - <ins>명일 시가 전, 현금 비중 33% 이내 분할 매수 추천</ins>")
+            
+        # 20일선 이탈(대추세 붕괴) 청산 시그널
+        if last_row['exit_signal_T']:
+            sell_signals.append(f"🔴 <b>[청산 지시] {name}</b>\n - <ins>사유:</ins> 중기 20일 추세선 하회 이탈 (대세 상승 동력 소멸)\n - <ins>보유 물량 명일 시가 개장 전 전량 매도 추천</ins>")
+            
+    if buy_signals:
+        msg_lines.append("\n📈 <b>[신규 진입 브리핑]</b>")
+        msg_lines.extend(buy_signals)
+    if sell_signals:
+        msg_lines.append("\n📉 <b>[기존 포지션 전량 청산 브리핑]</b>")
+        msg_lines.extend(sell_signals)
+        
+    if not buy_signals and not sell_signals:
+        msg_lines.append("\n✅ 오늘은 신규로 진입하거나 매도할 타점이 전혀 없습니다. 시드 머니와 주식을 그대로 보유(관망)합니다.")
+        
+    msg_lines.append("\n👉 <i>자세한 통계 지표는 개인 UI 웹 대시보드에서 체크하세요.</i>")
+    send_telegram_message("\n".join(msg_lines))
+
+if __name__ == "__main__":
+    scrape_and_notify()

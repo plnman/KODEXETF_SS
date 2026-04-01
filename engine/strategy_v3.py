@@ -6,16 +6,16 @@ import numpy as np
 # 종목 고유의 변동성(Beta)과 주포의 핸들링 특성을 반영하여 개별 최적화된 파라미터입니다.
 # -------------------------------------------------------------------------------------
 TICKER_PARAMS = {
-    "KODEX 200": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
-    "KODEX 코스닥150": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 반도체": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 은행": {'k': 0.7, 'mfi': 65, 'adx_threshold': 20},
-    "KODEX 자동차": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 2차전지산업": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 건설": {'k': 0.4, 'mfi': 60, 'adx_threshold': 15},
-    "KODEX 금융": {'k': 0.5, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 기계장비": {'k': 0.7, 'mfi': 65, 'adx_threshold': 15},
-    "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
+    "KODEX 200": {'k': 0.6, "mfi": 50, "adx_threshold": 15},
+    "KODEX 코스닥150": {'k': 0.2, "mfi": 50, "adx_threshold": 15},
+    "KODEX 반도체": {'k': 0.2, "mfi": 50, "adx_threshold": 15},
+    "KODEX 은행": {'k': 0.6, "mfi": 65, "adx_threshold": 20},
+    "KODEX 자동차": {'k': 0.2, "mfi": 50, "adx_threshold": 15},
+    "KODEX 2차전지산업": {'k': 0.3, "mfi": 60, "adx_threshold": 15},
+    "KODEX 건설": {'k': 0.3, "mfi": 60, "adx_threshold": 15},
+    "KODEX 금융": {'k': 0.5, "mfi": 65, "adx_threshold": 20},
+    "KODEX 기계장비": {'k': 0.2, "mfi": 40, "adx_threshold": 15},
+    "KODEX 철강": {'k': 0.6, "mfi": 40, "adx_threshold": 15},
 }
 
 # 공통 하드 스탑 방벽 (과도한 5일선 칼손절 방지를 위해 3.0 유지)
@@ -29,30 +29,11 @@ def calculate_dynamic_k(sigma_20: float, sigma_avg: float, k_base: float) -> flo
     k_adj = k_base * (sigma_20 / sigma_avg)
     return max(0.2, min(k_adj, 0.8))
 
-def get_market_regime(market_df: pd.DataFrame) -> pd.Series:
+def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", overrides: dict = None) -> pd.DataFrame:
     """
-    [V3.1] 시장(K200)의 ADX Z-Score를 기반으로 레짐(Bull/Stable)을 판독합니다.
-    """
-    df = market_df.copy()
-    window = 252
-    adx_mean = df['adx_14'].rolling(window=window).mean()
-    adx_std = df['adx_14'].rolling(window=window).std()
-    z_score = (df['adx_14'] - adx_mean) / adx_std
-    
-    # 히스테리시스 적용 (Bull: 2.0 이상 진입, 1.0 미만 시 퇴거)
-    regime = []
-    curr = False
-    for z in z_score:
-        if pd.isna(z): regime.append(False); continue
-        if not curr and z > 2.0: curr = True
-        elif curr and z < 1.0: curr = False
-        regime.append(curr)
-    return pd.Series(regime, index=df.index)
-
-def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", overrides: dict = None, is_bull_market = False) -> pd.DataFrame:
-    """
-    [V3.1 지능형 하이브리드 엔진]
-    is_bull_market: 실전 매매 시에는 현재 레짐(bool), 백테스트 시에는 날짜별 레짐(Series)을 입력받습니다.
+    [IRP 전용 무결성 매매 시그널 벡터 생성 엔진 (Daily-Only)]
+    ADX 14 필터를 추가하여 횡보장(Box-pi) Whipsaw 갈갈이 장세를 원천 차단하고, 
+    각 종목 고유의 특성 사전(TICKER_PARAMS)을 로드하여 완전히 독립적인 변동성 돌파를 집도합니다.
     """
     df = df.sort_values('date').copy()
     
@@ -68,8 +49,8 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     df['sigma_20'] = df['close'].rolling(window=20).std()
     df['sigma_avg'] = df['sigma_20'].rolling(window=252, min_periods=20).mean()
     df['sma_5'] = df['close'].rolling(window=5).mean()
-    df['sma_10'] = df['close'].rolling(window=10).mean()
-    df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['sma_10'] = df['close'].rolling(window=10).mean() # [V3] 가속/고점 익절선
+    df['sma_20'] = df['close'].rolling(window=20).mean() # 중기 추세방어선 (익절/손절 하한선)
     df['rs_20'] = df['close'].pct_change(periods=20)
     
     # ----------------------------------------------------
@@ -101,21 +82,15 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     df['adx_14'] = df['dx'].ewm(alpha=1/14, min_periods=14).mean()
     
     # ----------------------------------------------------
-    # 3. 타겟 브레이크 프라이스 (목표가) 계산 및 [V3.1] 불장 가속기 적용
+    # 3. 타겟 브레이크 프라이스 (목표가) 계산
     # ----------------------------------------------------
-    k_orig = df.apply(
+    df['k_orig'] = df.apply(
         lambda row: calculate_dynamic_k(row['sigma_20'], row['sigma_avg'], k_base_val), 
         axis=1
     )
-    # 불장 판독용 벡터 정렬 (Index Alignment)
-    if isinstance(is_bull_market, pd.Series):
-        is_bull_v = is_bull_market.reindex(df.index).fillna(False).values
-    else:
-        is_bull_v = is_bull_market
+    # [V3] 강세장 가속 진입 필터 (ADX > 30일 때 K 20% 할인)
+    df['k_adj'] = np.where(df['adx_14'] > 30, df['k_orig'] * 0.8, df['k_orig'])
 
-    # 불장일 경우 변동성 돌파 기준(K)을 20% 낮춰서(할인) 더 공격적으로 진입
-    df['k_adj'] = np.where(is_bull_v, k_orig * 0.8, k_orig)
-    
     df['range'] = df['high'] - df['low']
     df['prev_range'] = df['range'].shift(1)
     df['target_break_price'] = df['open'] + (df['prev_range'] * df['k_adj'])
@@ -131,17 +106,12 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     # 4가지 핵심 팩터(가격돌파, 스마트머니, 일봉지배력, 추세강도)를 100% 만족해야만 매수 시그널 발생!
     df['buy_signal_T'] = cond_price_break & cond_mfi & cond_ii & cond_adx
     
-    # [V3.1] 종목별 다이내믹 엑시트 (Dynamic Exit Lookback)
-    # 1. 과열 불장(is_bull_market) 시에는 전 종목 10일선으로 바짝 추격 익절
-    # 2. 일반 장세에서는 종목별 변동성(ATR/Price)에 따라 10~20일선 자동 조절
-    df['rel_vol'] = df['atr_14'] / df['close']
-    df['vol_rank'] = df['rel_vol'].rolling(window=252).rank(pct=True) # 자기 변동성 대비 현재 수준 (0.0~1.0)
-    
-    # 변동성이 낮은(안정적) 종목은 익절을 당기고, 변동성이 큰 종목은 휩쏘 방지를 위해 늦게 팜
+    # [V3] 가변적 청산 조건 (Dynamic Exit)
+    # 추세 강도가 35 이상으로 과열 시 10일선으로 타이트하게 익절, 평상시 20일선 추종
     df['exit_signal_T'] = np.where(
-        is_bull_v, 
-        df['close'] < df['sma_10'],
-        np.where(df['vol_rank'] < 0.3, df['close'] < df['sma_10'], df['close'] < df['sma_20'])
+        df['adx_14'] > 35, 
+        df['close'] < df['sma_10'], 
+        df['close'] < df['sma_20']
     )
     
     # IRP T+1 실행 확정 변수
