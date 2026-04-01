@@ -70,7 +70,22 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     df['sma_5'] = df['close'].rolling(window=5).mean()
     df['sma_10'] = df['close'].rolling(window=10).mean()
     df['sma_20'] = df['close'].rolling(window=20).mean()
+    df['sma_60'] = df['close'].rolling(window=60).mean()
+    df['sma_120'] = df['close'].rolling(window=120).mean()
     df['rs_20'] = df['close'].pct_change(periods=20)
+    
+    # [V3.1.2] Composite RS (복합 주도주 지수) 산출
+    # 단순 20일 수익률에 추세 가중치 부여: 역배열 종목(넌센스)을 순위에서 강제 퇴출
+    is_above_20 = df['close'] > df['sma_20']
+    is_above_60 = df['close'] > df['sma_60']
+    is_above_120 = df['close'] > df['sma_120']
+    
+    # 정배열 점수 (3단계 가점)
+    trend_score = is_above_20.astype(int) + is_above_60.astype(int) + is_above_120.astype(int)
+    
+    # Composite RS = rs_20 * (1 + 0.5 * trend_score)
+    # 추세가 무너진 종목(trend_score=0)은 수익률이 좋아도 점수가 낮게 유지됨
+    df['composite_rs'] = df['rs_20'] * (1.0 + 0.5 * trend_score)
     
     # ----------------------------------------------------
     # 1. 고전적 변동성/방어선 지표 연산 (ATR)

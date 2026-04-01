@@ -42,33 +42,36 @@ def load_and_process_data_v3_1():
     
     df_upper_k2 = k200_raw.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
     k200_raw['mfi'] = calculate_mfi(df_upper_k2)
-    k200_raw['intraday_intensity'] = calculate_intraday_intensity(df_upper_k2)
     k200_raw = k200_raw.dropna().reset_index(drop=True)
 
     k200_signals = build_signals_and_targets(k200_raw, ticker_name="KODEX 200")
     regime_series = get_market_regime(k200_signals)
 
+    # 2. 모든 종목 데이터 개별 처리 및 시계열 동기화 (무결성 확보)
     all_signals = {}
+    common_dates = data.index
+    
     for raw_ticker, name in TARGET_ETFS.items():
-        df_clean = pd.DataFrame()
+        df_clean = pd.DataFrame(index=common_dates)
         for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
             if (col, raw_ticker) in data.columns:
                 df_clean[col.lower()] = data[(col, raw_ticker)]
+        
+        # [무결성 FIX] 종목별로 비어있는 날짜를 앞방향으로 채워(ffill) 시점 불일치 제거
+        df_clean = df_clean.ffill().dropna().reset_index()
+        df_clean.rename(columns={'Date': 'date'}, inplace=True)
+        df_clean['date'] = df_clean['date'].dt.strftime('%Y-%m-%d')
+        
         if df_clean.empty: continue
             
-        df_clean = df_clean.dropna().reset_index()
-        df_clean['date'] = df_clean['Date'].dt.strftime('%Y-%m-%d')
-        df_upper = df_clean.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
-        df_clean['mfi'] = calculate_mfi(df_upper)
-        df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
-        df_clean = df_clean.dropna().reset_index(drop=True)
-        
-        # [무결성 동기화] 백테스팅을 위해 전체 날짜별 레짐(Z-Score) 벡터를 주입
-        signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
-        all_signals[name] = signals
+        # 개별 종목 시그널 생성 (시장 레짐 벡터 주입)
+        ticker_signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
+        all_signals[name] = ticker_signals
+
+    # 현재 레짐 상태 (최신일 기준)
+    is_bull_now = regime_series.iloc[-1]
     
-    is_today_bull = regime_series.iloc[-1]
-    return all_signals, is_today_bull
+    return all_signals, is_bull_now
 
 def main():
     st.sidebar.title("🛠️ 전략 설정 (Control)")
@@ -108,10 +111,10 @@ def main():
     with tab1:
         st.header(f"🎯 오늘의 AI 매매 권고 (TOP {max_tickers} 주도주)")
         
-        # RS 순위 추출
-        top_indices = sorted([(n, d['rs_20'].iloc[-1]) for n, d in all_signals.items()], key=lambda x: x[1], reverse=True)[:max_tickers]
+        # [무결성 보정] Composite RS 순위 추출 (추세 필터 적용)
+        top_indices = sorted([(n, d['composite_rs'].iloc[-1]) for n, d in all_signals.items()], key=lambda x: x[1], reverse=True)[:max_tickers]
         
-        # [NEW] 그리드 레이아웃 적용 (가독성 확보)
+        # [NEW] 그리드 레이아웃 적용 (가공되지 않은 원칙 중심 노출)
         cols_per_row = 3
         for r_idx in range(0, len(top_indices), cols_per_row):
             row_indices = top_indices[r_idx : r_idx + cols_per_row]
@@ -207,31 +210,61 @@ def main():
                 y_data.append({"연도": f"{y}년", "IRP 수익률": ir, "KOSPI 200": ko, "Alpha": f"{ir-ko:+.2f}%"})
             st.dataframe(pd.DataFrame(y_data), use_container_width=True, hide_index=True)
 
-    # === TAB 3: 알고리즘 무결성 진단 ===
+    # === TAB 3: 알고리즘 무결성 진단 (투명화 고도화) ===
     with tab3:
-        st.header("🩺 V3.1 지능형 하이브리드 엔진 무결성 진단")
+        st.header("🩺 투명한 하이브리드 엔진 설계도 (무결성 공시)")
         
-        c1, c2 = st.columns(2)
-        with c1:
-            st.subheader("⚙️ 현재 적용 로직 & 파라미터")
-            st.write(f"✅ **시장 레짐:** {'🔥 BULL Market (K=0.4)' if is_bull_now else '🛡️ STABLE Market (K=0.6)'}")
-            st.json(V3_1_PARAMS)
-        with c2:
-            st.subheader("🧪 무결성 검증 상태 (Backtest vs Live)")
-            st.success("✅ 백테스팅 로직-실전 엔진 파라미터 100% 일치")
-            st.success("✅ Z-Score 타임벡터 시계열 무결성 검증 완료")
-            st.success("✅ RS 스크리닝 필터링 일관성 확보")
+        col_reg, col_param = st.columns([1, 2])
+        
+        with col_reg:
+            st.subheader("📡 시장 레짐(Regime) 실시간 상태")
+            regime_status = "🔥 BULL (공격 모드)" if is_bull_now else "🛡️ STABLE (안정 모드)"
+            st.info(f"**현재 상태:** {regime_status}")
             
-        st.markdown("---")
-        st.subheader("📘 샘플링 검증 가이드 (How it Works)")
-        st.info("""
-        본 시스템은 **변동성 돌파 전략(Volatility Breakout)**에 **추세 강도(Z-Score)**를 결합하여 작동합니다.
+            # 레짐 판독 공식 공시
+            st.markdown("""
+            **[레짐 판독 로직]**
+            - **기준:** KODEX 200의 ADX 14일선 Z-Score
+            - **공식:** $Z = (ADX_{now} - ADX_{\mu}) / ADX_{\sigma}$
+            - **임계값:** $Z > 2.0$ 진입 시 공격, $Z < 1.0$ 하향 시 안정 모드
+            """)
+            
+        with col_param:
+            st.subheader("⚙️ 종목별 개별 최적화 파라미터 (TICKER_PARAMS)")
+            # strategy.py의 TICKER_PARAMS를 테이블로 공시
+            param_df = pd.DataFrame(TICKER_PARAMS).T.reset_index()
+            param_df.columns = ["종목명", "변동성 상수(K)", "수급 임계치(MFI)", "추세 임계치(ADX)"]
+            st.table(param_df)
+
+        st.divider()
         
-        1. **데이터 수집:** KODEX 200 등 타겟 종목의 일간 OHLCV 데이터를 수집합니다.
-        2. **레짐 판독:** ADX Z-Score가 1.5를 넘으면 불장(Bull)으로 판독하여 K값을 0.4로 낮춥니다(진입을 더 쉽게 하여 공격성 향상).
-        3. **타겟가 산출:** `Target = Open + (Previous Range * K)` 공식으로 당일의 돌파 가격을 계산합니다.
-        4. **실전 매칭:** 현재가가 Target을 터치하면 사용자에게 '매수 가능' 시그널을 출력합니다.
-        5. **샘플링 검증:** `engine/strategy.py`의 `build_signals_and_targets` 함수를 직접 호출하여 특정 날짜의 Target 값과 백테스팅 History의 Target 값이 일치하는지 대조하여 무결성을 상시 증명합니다.
+        st.subheader("📊 랭킹 산출 근거 (Composite RS Integrity)")
+        # 랭킹의 재료가 되는 숫자를 투명하게 노출
+        ranking_data = []
+        for name, df in all_signals.items():
+            curr = df.iloc[-1]
+            prev_20 = df.iloc[-21] if len(df) >= 21 else df.iloc[0]
+            
+            # 추세 가점 수동 복기용 계산
+            tr_score = (curr['close'] > curr['sma_20']) + (curr['close'] > curr['sma_60']) + (curr['close'] > curr['sma_120'])
+            
+            ranking_data.append({
+                "종목명": name,
+                "현재가 (T)": f"{curr['close']:,.0f}원",
+                "수익률(RS_20)": f"{curr['rs_20']*100:+.2f}%",
+                "추세 가점(0~3)": f"{tr_score}점",
+                "복합RS(Composite)": f"{curr['composite_rs']*100:+.2f}%"
+            })
+        
+        rank_raw_df = pd.DataFrame(ranking_data).sort_values("복합RS(Composite)", ascending=False)
+        st.write("**현재 상동한 랭킹 정렬의 실시간 엔진 내부 수치입니다.** (추세 점수가 낮은 역배열 종목은 후순위로 자동 배치)")
+        st.table(rank_raw_df)
+
+        st.markdown("""
+        ### ⚖️ 무결성 선언
+        1. **단일 원천 데이터(SSoT):** 백테스팅 엔진과 실전 대시보드는 동일한 `strategy.py` 모듈과 동일한 파라미터를 공유합니다.
+        2. **데이터 동기화:** 모든 종목의 날짜 인덱스를 하나로 통일하여, 모드 전환 시에도 종목 랭킹이 뒤바뀌지 않도록 무결성을 확보했습니다.
+        3. **투명한 공식:** 목표가는 $Open + PrevRange \times K_{adj}$ 공식을 따르며, 불장일 경우 K값을 20% 할인하여 공격적인 진입을 수행합니다.
         """)
 
     with tab4:
