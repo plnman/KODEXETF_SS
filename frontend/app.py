@@ -7,7 +7,7 @@ import os
 import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from engine.strategy import build_signals_and_targets, get_market_regime
+from engine.strategy import build_signals_and_targets, get_market_regime, TICKER_PARAMS
 from analytics.portfolio_backtester import run_portfolio_backtest
 from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS
