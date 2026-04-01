@@ -42,6 +42,7 @@ def load_and_process_data_v3_1():
     
     df_upper_k2 = k200_raw.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
     k200_raw['mfi'] = calculate_mfi(df_upper_k2)
+    k200_raw['intraday_intensity'] = calculate_intraday_intensity(df_upper_k2)
     k200_raw = k200_raw.dropna().reset_index(drop=True)
 
     k200_signals = build_signals_and_targets(k200_raw, ticker_name="KODEX 200")
