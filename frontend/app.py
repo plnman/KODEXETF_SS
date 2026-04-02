@@ -106,15 +106,18 @@ def main():
         
         # [V3.1.3] 무결성 감사 로그 기록 (실시간 추적용)
         log_backtest_integrity(port_res)
-        # 기준점(Baseline) 설정: 2026-04-01 기준 검증된 수익률 약 212~230%
+        
+        # -------------------------------------------------------------------------------------
+        # [V3.1.3 INTEGRITY ENGINE] FINAL SYNC & DEPLOYMENT (2026-04-02 15:00) 🕋🚀
+        # -------------------------------------------------------------------------------------
         BASELINE_RET = 230.66 
-        current_ret = port_res['cumulative_return']
+        current_ret = port_res.get('cumulative_return', 0.0)
         diff_ret = current_ret - BASELINE_RET
         
         c_int1, c_int2, c_int3, c_int4 = st.columns(4)
-        c_int1.metric("시작-종료 범위", f"{port_res['start_date']} ~ {port_res['end_date']}")
+        c_int1.metric("시작-종료 범위", f"{port_res.get('start_date', '-')} ~ {port_res.get('end_date', '-')}")
         c_int2.metric("데이터 무결성 점수", "✅ 100%", help="데이터 누수(dropna) 없이 전 구간 계산됨")
-        c_int3.metric("데이터 총 행수", f"{port_res['total_days']} rows", f"{port_res['total_days'] - 1820} days added")
+        c_int3.metric("데이터 총 행수", f"{port_res.get('total_days', 0)} rows", f"{port_res.get('total_days', 0) - 1820} days added")
         
         integrity_status = "🟢 정상 (Verified)" if abs(diff_ret) < 5.0 else "🔴 주의 (Anomaly Detected)"
         c_int4.metric("수익률 정밀 오차", f"{diff_ret:+.2f}%", integrity_status)
