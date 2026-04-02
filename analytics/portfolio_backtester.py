@@ -125,9 +125,25 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 5000
         years = max(years, 0.5)
         cagr = ((final_value / initial_capital) ** (1 / years) - 1) * 100
         
+    # 최종 결과 반환
+    if df_history.empty:
+        return {
+            "initial_capital": initial_capital,
+            "final_capital": initial_capital,
+            "cumulative_return": 0.0,
+            "cagr": 0,
+            "mdd": 0,
+            "history": df_history,
+            "trades_df": df_trades,
+            "start_date": "-",
+            "end_date": "-",
+            "total_days": 0
+        }
+
     return {
         "initial_capital": initial_capital,
         "final_capital": round(final_value, 0),
+        "cumulative_return": round((final_value / initial_capital - 1) * 100, 2),
         "cagr": round(cagr, 2),
         "mdd": round(mdd, 2),
         "history": df_history,
