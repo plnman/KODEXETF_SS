@@ -103,11 +103,11 @@ def main():
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
-    # [V3.1.7] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
+    # [V3.1.8] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.7 - Individual Fetching Fixed)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.8 - Final Integrity Restored)")
     
-    with st.spinner("데이터 동기화 및 V3.1.7 지능형 레짐 분석 중..."):
+    with st.spinner("데이터 동기화 및 V3.1.8 지능형 레짐 분석 중..."):
         all_signals, is_bull_now, raw_data = load_and_process_data_v3_1_2()
         
         with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
