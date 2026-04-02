@@ -57,6 +57,9 @@ def load_and_process_data_v3_1_2():
     k200_raw['mfi'] = calculate_mfi(df_upper_k2)
     k200_raw['intraday_intensity'] = calculate_intraday_intensity(df_upper_k2)
     k200_raw = k200_raw.dropna().reset_index(drop=True)
+    # [디버그 fix] strategy.py가 소문자 컬럼명을 기대하므로 변환 (계산 로직 무관)
+    k200_raw = k200_raw.drop(columns=['Date'], errors='ignore')
+    k200_raw.columns = [c.lower() for c in k200_raw.columns]
     k200_signals = build_signals_and_targets(k200_raw, ticker_name="KODEX 200")
     regime_series = get_market_regime(k200_signals)
 
