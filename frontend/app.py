@@ -103,9 +103,9 @@ def main():
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
-    # [V3.3.3] 무결성 추적 및 성과 데이터센터 (Truth Verified)
+    # [V3.3.4] 무결성 추적 및 성과 데이터센터 (Definitive Truth - REFRESHED)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.3 - Truth Verified)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.4 - Truth Verified 🕋)")
     
     # [v3.3.3] 무결성 배지 (Integrity Status Badge) 최상단 배치
     c_badge1, c_badge2 = st.columns([1, 4])
