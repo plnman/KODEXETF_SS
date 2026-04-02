@@ -2,6 +2,7 @@ import os
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import FinanceDataReader as fdr
 from datetime import datetime
 from dotenv import load_dotenv
 from data_collector.supabase_client import get_supabase_client
@@ -51,15 +52,6 @@ def calculate_mfi(df, period=14):
     return mfi.fillna(50)
 
 def calculate_intraday_intensity(df):
-    """장중 매수 강도 (Intraday Intensity): NumPy 배열 추출로 구조 모호성 완전 차단"""
-    high = df['High'].values.flatten() if 'High' in df else df['high'].values.flatten()
-    low = df['Low'].values.flatten() if 'Low' in df else df['low'].values.flatten()
-    close = df['Close'].values.flatten() if 'Close' in df else df['close'].values.flatten()
-    volume = df['Volume'].values.flatten() if 'Volume' in df else df['volume'].values.flatten()
-
-    range_hl = high - low
-    # 0으로 나누는 에러(점상한가 등) 방지
-    range_hl = np.where(range_hl == 0, 0.001, range_hl)
     ii = ((2 * close - high - low) / range_hl) * volume
     return pd.Series(ii, index=df.index)
 
