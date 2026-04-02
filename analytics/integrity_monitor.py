@@ -13,11 +13,11 @@ def log_backtest_integrity(res_dict):
     log_entry = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "version": "V3.1.3",
-        "start_date": res_dict['start_date'],
-        "end_date": res_dict['end_date'],
-        "total_days": res_dict['total_days'],
-        "cumulative_return": f"{res_dict['cumulative_return']:.2%}",
-        "mdd": f"{res_dict['mdd']:.2%}",
+        "start_date": res_dict.get('start_date', '-'),
+        "end_date": res_dict.get('end_date', '-'),
+        "total_days": res_dict.get('total_days', 0),
+        "cumulative_return": f"{res_dict.get('cumulative_return', 0.0):.2f}%",
+        "mdd": f"{res_dict.get('mdd', 0.0):.2f}%",
         "integrity_check": "PASSED"
     }
     
