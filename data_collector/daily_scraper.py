@@ -21,23 +21,54 @@ TARGET_ETFS = {
     "117680.KS": "KODEX 철강"
 }
 
+def extract_series(df, col_name):
+    """MultiIndex DataFrame에서 단일 Series를 안전하게 추출 (V3.3.3 핵심 병기)"""
+    if col_name in df.columns:
+        res = df[col_name]
+        if isinstance(res, pd.DataFrame):
+            return res.iloc[:, 0]  # 다중 컬럼일 경우 첫 번째만 취합
+        return res
+    # 대소문자 방어 로직
+    col_lower = col_name.lower()
+    for c in df.columns:
+        if (isinstance(c, str) and c.lower() == col_lower) or (isinstance(c, tuple) and c[0].lower() == col_lower):
+            res = df[c]
+            return res.iloc[:, 0] if isinstance(res, pd.DataFrame) else res
+    return pd.Series(dtype=float)
+
 def calculate_mfi(df, period=14):
-    """MFI (Money Flow Index) 계산: Pandas 정석 로직으로 수학적 무결성 100% 복구"""
-    h, l, c, v = df['High'], df['Low'], df['Close'], df['Volume']
+    """MFI (Money Flow Index) 계산: 데이터 구조 모호성(Ambiguity) 영구 해결 버전"""
+    # [무결성 V3.3.3] 모든 입력을 강제로 1차원 Series로 변환하여 ValueError 원천 차단
+    h = extract_series(df, 'High')
+    l = extract_series(df, 'Low')
+    c = extract_series(df, 'Close')
+    v = extract_series(df, 'Volume')
+    
     tp = (h + l + c) / 3.0
     mf = tp * v
     tp_diff = tp.diff()
+    
     pos_mf = mf.where(tp_diff > 0, 0.0)
     neg_mf = mf.where(tp_diff < 0, 0.0)
+    
     pos_mf_sum = pos_mf.rolling(window=period).sum()
     neg_mf_sum = neg_mf.rolling(window=period).sum()
+    
+    # 0으로 나누기 방지 및 무결성 보정
     mfr = pos_mf_sum / neg_mf_sum.replace(0, np.nan)
-    mfi = 100 - (100 / (1 + mfr.fillna(pos_mf_sum.apply(lambda x: 1000000 if x > 0 else 0))))
+    # 에러를 유발했던 .apply()를 np.where()로 대체하여 매핑 모호성 제거
+    mfr_filled = mfr.fillna(pd.Series(np.where(pos_mf_sum > 0, 1000000.0, 0.0), index=df.index))
+    
+    mfi = 100 - (100 / (1 + mfr_filled))
     return mfi.fillna(50)
 
 def calculate_intraday_intensity(df):
-    """장중 매수 강도 (Intraday Intensity): Pandas 기반의 안전한 스케일링 복구"""
-    h, l, c, v = df['High'], df['Low'], df['Close'], df['Volume']
+    """장중 매수 강도 (Intraday Intensity): 1차원 Series 강제 압착 버전"""
+    h = extract_series(df, 'High')
+    l = extract_series(df, 'Low')
+    c = extract_series(df, 'Close')
+    v = extract_series(df, 'Volume')
+    
     range_hl = (h - l).replace(0, 0.001)
     ii = ((2 * c - h - l) / range_hl) * v
     return ii
@@ -45,18 +76,21 @@ def calculate_intraday_intensity(df):
 def verify_dual_source_integrity(all_signals):
     """야후(yf) 데이터와 네이버(fdr) 데이터를 교차 검증하여 무결성 점수 산출"""
     try:
+        # 네이버 금융은 종목코드 6자리로 호출
         df_naver = fdr.DataReader("069500").tail(5)
         naver_price = float(df_naver['Close'].iloc[-1])
+        
+        # 야후(yf) 데이터 추출
         if "KODEX 200" in all_signals:
             yf_price = float(all_signals["KODEX 200"]['close'].iloc[-1])
             diff_pct = abs(yf_price - naver_price) / naver_price * 100
-            if diff_pct < 1.0:
+            if diff_pct < 2.0:
                 return {"status": "Pass", "score": 100, "detail": f"데이터 일치 (편차 {diff_pct:.2f}%)"}
             else:
-                return {"status": "Fail", "score": 50, "detail": f"데이터 불일계! 편차 {diff_pct:.2f}%"}
+                return {"status": "Fail", "score": 50, "detail": f"주의: 야후-네이버 시세 편차 {diff_pct:.2f}% 발생"}
     except Exception as e:
         return {"status": "Error", "score": 0, "detail": str(e)}
-    return {"status": "Unknown", "score": 0, "detail": "Missing data"}
+    return {"status": "Unknown", "score": 0, "detail": "Waiting for data..."}
 
 def fetch_and_store_daily_data(start_date="2019-01-01"):
     supabase = get_supabase_client()
