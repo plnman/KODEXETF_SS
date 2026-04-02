@@ -48,6 +48,9 @@ def load_and_process_data_v3_1_2():
     
     # 레짐 판독용 KODEX 200 데이터 별도 확보
     k200_data = yf.download("069500.KS", start="2019-01-01", progress=False)
+    # [디버그 fix] yfinance 최신버전 MultiIndex 컬럼 평탄화 (계산 로직 무관)
+    if isinstance(k200_data.columns, pd.MultiIndex):
+        k200_data.columns = [col[0] for col in k200_data.columns]
     k200_raw = k200_data.dropna().reset_index()
     k200_raw['date'] = k200_raw['Date'].dt.strftime('%Y-%m-%d')
     df_upper_k2 = k200_raw.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
@@ -62,6 +65,9 @@ def load_and_process_data_v3_1_2():
     for raw_ticker, name in TARGET_ETFS.items():
         # [무결성 V3.1.7] 종목별 개별 핀셋 호출 (삼성전자 가격 침범 물리적 차단)
         data_single = yf.download(raw_ticker, start="2019-01-01", progress=False)
+        # [디버그 fix] yfinance 최신버전 MultiIndex 컬럼 평탄화 (계산 로직 무관)
+        if isinstance(data_single.columns, pd.MultiIndex):
+            data_single.columns = [col[0] for col in data_single.columns]
         df_clean = data_single.copy()
         
         # 컬럼명을 소문자로 통일 (Open -> open)
