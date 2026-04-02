@@ -271,7 +271,7 @@ def main():
     # === TAB 2: 백테스팅 종합 대시보드 ===
     with tab2:
         st.header(f"📊 {max_tickers}종목 전략 통합 백테스팅 결과")
-        port_res = run_portfolio_backtest(all_signals, initial_capital=50000000.0, max_tickers=max_tickers, weight_per_ticker=weight_per_ticker)
+        # [V3.3.1] 최적화: 상단 무결성 감시장치(138라인)에서 이미 연산된 port_res 재사용 (메모리 절감)
         total_pct = ((port_res['final_capital'] / 50000000.0) - 1) * 100
         
         m1, m2, m3 = st.columns(3)
