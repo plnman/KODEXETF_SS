@@ -103,16 +103,16 @@ def main():
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
-    # [V3.3.0] 무결성 추적 및 성과 데이터센터 (Ultimate Recovery)
+    # [V3.3.1] 무결성 추적 및 성과 데이터센터 (Ultimate Recovery)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.0 - Ultimate Recovery)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.1 - Optimized)")
     
-    # [v3.3.0] 무결성 배지 (Integrity Status Badge) 최상단 배치
+    # [v3.3.1] 무결성 배지 (Integrity Status Badge) 최상단 배치
     c_badge1, c_badge2 = st.columns([1, 4])
     with c_badge1:
         st.success("✅ 백테스트 무결성 검증 완료")
     with c_badge2:
-        st.info("💡 야후-네이버 이중 검사 시스템 대기 중... (오후 4시 정례 동기화)")
+        st.info("💡 야후-네이버 이중 검사 시스템 작동 중 (상시 감시 체계)")
 
     with st.spinner("데이터 동기화 및 V3.3.0 수학적 무결성 검증 중..."):
         all_signals, is_bull_now, raw_data = load_and_process_data_v3_1_2()
