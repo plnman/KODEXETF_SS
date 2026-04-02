@@ -57,11 +57,17 @@ def load_and_process_data_v3_1_2():
         df_clean = pd.DataFrame(index=common_dates)
         for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
             try:
-                # 멀티인덱스 대응: (Attribute, Ticker)에서 해당 티커의 컬럼만 정확히 추출
-                if isinstance(data.columns, pd.MultiIndex):
-                    df_clean[col.lower()] = data.xs(raw_ticker, axis=1, level=1)[col]
+                # [무결성 FIX] 계층 구조(level)에 의존하지 않고 안전하게 열 추출
+                if (col, raw_ticker) in data.columns:
+                    df_clean[col.lower()] = data[(col, raw_ticker)]
+                elif (raw_ticker, col) in data.columns:
+                    df_clean[col.lower()] = data[(raw_ticker, col)]
                 else:
-                    df_clean[col.lower()] = data[col]
+                    # [V3.1.4] 1개 티커만 있을 때의 Single Index 대응
+                    if col in data.columns:
+                        df_clean[col.lower()] = data[col]
+                    else:
+                        df_clean[col.lower()] = 0.0
             except Exception as e:
                 st.warning(f"⚠️ {name} 데이터 추출 중 오류: {e}")
                 df_clean[col.lower()] = 0.0
@@ -82,7 +88,7 @@ def load_and_process_data_v3_1_2():
         df_clean['mfi'] = calculate_mfi(df_upper)
         df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
         
-        # [V3.1.3] 개별 종목 시그널 생성 (시장 레짐 벡터 주입)
+        # [V3.1.4] 개별 종목 시그널 생성 (시장 레짐 벡터 주입)
         ticker_signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
         all_signals[name] = ticker_signals
 
