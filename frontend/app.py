@@ -103,11 +103,11 @@ def main():
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
-    # [V3.1.8] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
+    # [V3.1.9] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.8 - Final Integrity Restored)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.9 - Final Integrity Restored)")
     
-    with st.spinner("데이터 동기화 및 V3.1.8 지능형 레짐 분석 중..."):
+    with st.spinner("데이터 동기화 및 V3.1.9 지능형 레짐 분석 중..."):
         all_signals, is_bull_now, raw_data = load_and_process_data_v3_1_2()
         
         with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
@@ -250,6 +250,7 @@ def main():
         m1, m2, m3 = st.columns(3)
         m1.metric("초기 원금", "50,000,000 원")
         m2.metric(f"최종 누적 잔고", f"{port_res['final_capital']:,.0f} 원")
+        
         m3.metric("누적 수익률", f"{total_pct:,.2f} %", f"CAGR {port_res['cagr']}%")
 
         if not port_res['history'].empty:

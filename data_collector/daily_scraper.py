@@ -22,45 +22,46 @@ TARGET_ETFS = {
 }
 
 def calculate_mfi(df, period=14):
-    """MFI (Money Flow Index) 계산: 벡터화된 엔진으로 속도와 무결성 확보"""
-    # [무결성 V3.1.8] 데이터가 DataFrame으로 들어올 때를 대비해 스칼라 Series로 강제 변환
-    high = df['High'].squeeze() if 'High' in df else df['high'].squeeze()
-    low = df['Low'].squeeze() if 'Low' in df else df['low'].squeeze()
-    close = df['Close'].squeeze() if 'Close' in df else df['close'].squeeze()
-    volume = df['Volume'].squeeze() if 'Volume' in df else df['volume'].squeeze()
+    """MFI (Money Flow Index) 계산: NumPy 코어로 데이터 구조 모호성 영구 해결"""
+    # [무결성 V3.1.9] 연산 과정에서 데이터프레임 구조의 간섭을 차단하기 위해 NumPy로 추출
+    high = df['High'].values.flatten() if 'High' in df else df['high'].values.flatten()
+    low = df['Low'].values.flatten() if 'Low' in df else df['low'].values.flatten()
+    close = df['Close'].values.flatten() if 'Close' in df else df['close'].values.flatten()
+    volume = df['Volume'].values.flatten() if 'Volume' in df else df['volume'].values.flatten()
 
-    typical_price = (high + low + close) / 3
+    typical_price = (high + low + close) / 3.0
     raw_money_flow = typical_price * volume
     
-    # 전일 대비 Typical Price 차이 계산
-    price_diff = typical_price.diff()
+    # 전일 대비 Typical Price 차이 계산 (NumPy 연산)
+    price_diff = np.diff(typical_price, prepend=typical_price[0])
     
-    # 긍정적/부정적 자금 흐름 계산 (벡터화)
-    pos_flow = np.where(price_diff > 0, raw_money_flow, 0)
-    neg_flow = np.where(price_diff < 0, raw_money_flow, 0)
+    # 긍정적/부정적 자금 흐름 계산 (벡터화 - NumPy where)
+    pos_flow = np.where(price_diff > 0, raw_money_flow, 0.0)
+    neg_flow = np.where(price_diff < 0, raw_money_flow, 0.0)
     
+    # 다시 Pandas로 감싸서 Rolling Sum 수행
     pos_flow_sum = pd.Series(pos_flow, index=df.index).rolling(window=period).sum()
     neg_flow_sum = pd.Series(neg_flow, index=df.index).rolling(window=period).sum()
     
     # 0으로 나누는 에러 방지
     money_ratio = pos_flow_sum / neg_flow_sum.replace(0, np.nan)
-    money_ratio = money_ratio.fillna(pos_flow_sum) # neg_flow가 0이면 매우 큰 값으로 간주
+    money_ratio = money_ratio.fillna(pos_flow_sum)
     
     mfi = 100 - (100 / (1 + money_ratio))
-    return mfi.fillna(50) # 초기값 50
+    return mfi.fillna(50)
 
 def calculate_intraday_intensity(df):
-    """장중 매수 강도 (Intraday Intensity): 종가를 고점에서 마감시키는 주포의 힘을 측정 (벡터화)"""
-    high = df['High'].squeeze() if 'High' in df else df['high'].squeeze()
-    low = df['Low'].squeeze() if 'Low' in df else df['low'].squeeze()
-    close = df['Close'].squeeze() if 'Close' in df else df['close'].squeeze()
-    volume = df['Volume'].squeeze() if 'Volume' in df else df['volume'].squeeze()
+    """장중 매수 강도 (Intraday Intensity): NumPy 배열 추출로 구조 모호성 완전 차단"""
+    high = df['High'].values.flatten() if 'High' in df else df['high'].values.flatten()
+    low = df['Low'].values.flatten() if 'Low' in df else df['low'].values.flatten()
+    close = df['Close'].values.flatten() if 'Close' in df else df['close'].values.flatten()
+    volume = df['Volume'].values.flatten() if 'Volume' in df else df['volume'].values.flatten()
 
     range_hl = high - low
     # 0으로 나누는 에러(점상한가 등) 방지
-    range_hl = range_hl.replace(0, 0.001)
+    range_hl = np.where(range_hl == 0, 0.001, range_hl)
     ii = ((2 * close - high - low) / range_hl) * volume
-    return ii
+    return pd.Series(ii, index=df.index)
 
 def fetch_and_store_daily_data(start_date="2019-01-01"):
     supabase = get_supabase_client()
