@@ -29,58 +29,43 @@ V3_1_PARAMS = {
 
 @st.cache_data(ttl=3600)
 def load_and_process_data_v3_1_2():
-    tickers_list = list(TARGET_ETFS.keys())
-    data = yf.download(tickers_list, start="2019-01-01", progress=False)
+    # 1. 원천 데이터 확보 (yfinance 기반)
+    TARGET_ETFS = {
+        "069500.KS": "KODEX 200", 
+        "226490.KS": "KODEX 코스닥150",
+        "091160.KS": "KODEX 반도체",
+        "091170.KS": "KODEX 은행",
+        "091180.KS": "KODEX 자동차",
+        "305720.KS": "KODEX 2차전지산업",
+        "117700.KS": "KODEX 건설",
+        "091220.KS": "KODEX 금융",
+        "102970.KS": "KODEX 기계장비",
+        "117680.KS": "KODEX 철강"
+    }
     
-    # 1. 시장 레짐 판독 (KODEX 200 기준)
-    k200_raw = pd.DataFrame()
-    for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-        if (col, "069500.KS") in data.columns:
-            k200_raw[col.lower()] = data[(col, "069500.KS")]
+    # [무결성 V3.1.7] 가격 오염 차단을 위해 멀티 티커 다운로드를 폐지하고 개별 호출 수행
+    all_signals = {}
     
-    k200_raw = k200_raw.dropna().reset_index()
+    # 레짐 판독용 KODEX 200 데이터 별도 확보
+    k200_data = yf.download("069500.KS", start="2019-01-01", progress=False)
+    k200_raw = k200_data.dropna().reset_index()
     k200_raw['date'] = k200_raw['Date'].dt.strftime('%Y-%m-%d')
-    
     df_upper_k2 = k200_raw.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
     k200_raw['mfi'] = calculate_mfi(df_upper_k2)
     k200_raw['intraday_intensity'] = calculate_intraday_intensity(df_upper_k2)
     k200_raw = k200_raw.dropna().reset_index(drop=True)
-
     k200_signals = build_signals_and_targets(k200_raw, ticker_name="KODEX 200")
     regime_series = get_market_regime(k200_signals)
 
-    # 2. 모든 종목 데이터 개별 처리 및 시계열 동기화 (무결성 확보)
-    all_signals = {}
-    common_dates = data.index
+    common_dates = k200_data.index
     
     for raw_ticker, name in TARGET_ETFS.items():
-        df_clean = pd.DataFrame(index=common_dates)
-        for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-            try:
-                # [V3.1.5] 극강의 핀셋 매핑: 멀티인덱스 모든 경우의 수 전수 조사
-                # (Attribute, Ticker) 또는 (Ticker, Attribute) 모두 대응
-                target_col = None
-                for c_idx in data.columns:
-                    if isinstance(c_idx, tuple):
-                        if c_idx[0] == col and c_idx[1] == raw_ticker:
-                            target_col = c_idx
-                            break
-                        if c_idx[1] == col and c_idx[0] == raw_ticker:
-                            target_col = c_idx
-                            break
-                    elif c_idx == col and len(TARGET_ETFS) == 1:
-                        target_col = c_idx
-                        break
-                
-                if target_col is not None:
-                    df_clean[col.lower()] = data[target_col]
-                else:
-                    df_clean[col.lower()] = 0.0
-            except Exception as e:
-                st.warning(f"⚠️ {name} 데이터 추출 중 오류: {e}")
-                df_clean[col.lower()] = 0.0
+        # [무결성 V3.1.7] 종목별 개별 핀셋 호출 (삼성전자 가격 침범 물리적 차단)
+        data_single = yf.download(raw_ticker, start="2019-01-01", progress=False)
+        df_clean = data_single.copy()
         
-        # [무결성 FIX] dropna()를 제거하고 시계열 길이 보존
+        # 컬럼명을 소문자로 통일 (Open -> open)
+        df_clean.columns = [c.lower() for c in df_clean.columns]
         df_clean = df_clean.ffill().fillna(0).reset_index()
         df_clean.rename(columns={'Date': 'date'}, inplace=True)
         # 만약 date 컬럼이 없으면 인덱스에서 복구
@@ -91,19 +76,18 @@ def load_and_process_data_v3_1_2():
         
         if df_clean.empty: continue
             
-        # [복구] 수급 지표 계산 (strategy.py 연동용)
+        # [복구] 수급 지표 및 시그널 계산
         df_upper = df_clean.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
         df_clean['mfi'] = calculate_mfi(df_upper)
         df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
         
-        # [V3.1.4] 개별 종목 시그널 생성 (시장 레짐 벡터 주입)
         ticker_signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
         all_signals[name] = ticker_signals
 
     # 현재 레짐 상태 (최신일 기준)
     is_bull_now = regime_series.iloc[-1]
     
-    return all_signals, is_bull_now, data
+    return all_signals, is_bull_now, k200_data
 
 def main():
     st.sidebar.title("🛠️ 전략 설정 (Control)")
@@ -113,18 +97,17 @@ def main():
         index=0
     )
     
-    if "3종목" in strat_mode: max_tickers, weight_per_ticker = 3, 0.333
-    elif "5종목" in strat_mode: max_tickers, weight_per_ticker = 5, 0.2
-    else: max_tickers, weight_per_ticker = 10, 0.1
+    max_tickers = {"🚀 3종목 집중 투자 (수익률형)": 3, "🛡️ 5종목 균형 투자 (표준형)": 5, "🏦 10종목 전방위 투자 (안정형)": 10}[strat_mode]
+    weight_per_ticker = 1.0 / max_tickers
 
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
-    # [V3.1.6] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
+    # [V3.1.7] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.6)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.7 - Individual Fetching Fixed)")
     
-    with st.spinner("데이터 동기화 및 V3.1.6 지능형 레짐 분석 중..."):
+    with st.spinner("데이터 동기화 및 V3.1.7 지능형 레짐 분석 중..."):
         all_signals, is_bull_now, raw_data = load_and_process_data_v3_1_2()
         
         with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
