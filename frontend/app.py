@@ -56,14 +56,24 @@ def load_and_process_data_v3_1_2():
     for raw_ticker, name in TARGET_ETFS.items():
         df_clean = pd.DataFrame(index=common_dates)
         for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
-            if (col, raw_ticker) in data.columns:
-                df_clean[col.lower()] = data[(col, raw_ticker)]
+            try:
+                # 멀티인덱스 대응: (Attribute, Ticker)에서 해당 티커의 컬럼만 정확히 추출
+                if isinstance(data.columns, pd.MultiIndex):
+                    df_clean[col.lower()] = data.xs(raw_ticker, axis=1, level=1)[col]
+                else:
+                    df_clean[col.lower()] = data[col]
+            except Exception as e:
+                st.warning(f"⚠️ {name} 데이터 추출 중 오류: {e}")
+                df_clean[col.lower()] = 0.0
         
-        # [무결성 FIX] dropna()를 제거하고, 개별 종목의 상장일 이후 데이터만 정밀 취급
-        # ffill() 후에도 남는 초기 NaN은 0으로 채워(fillna(0)) 시계열 길이 보존
+        # [무결성 FIX] dropna()를 제거하고 시계열 길이 보존
         df_clean = df_clean.ffill().fillna(0).reset_index()
         df_clean.rename(columns={'Date': 'date'}, inplace=True)
-        df_clean['date'] = df_clean['date'].dt.strftime('%Y-%m-%d')
+        # 만약 date 컬럼이 없으면 인덱스에서 복구
+        if 'date' not in df_clean.columns and 'Date' in df_clean.columns:
+            df_clean.rename(columns={'Date': 'date'}, inplace=True)
+            
+        df_clean['date'] = pd.to_datetime(df_clean['date']).dt.strftime('%Y-%m-%d')
         
         if df_clean.empty: continue
             
@@ -281,8 +291,8 @@ def main():
             curr = df.iloc[-1]
             prev_20 = df.iloc[-21] if len(df) >= 21 else df.iloc[0]
             
-            # 추세 가점 수동 복기용 계산
-            tr_score = (curr['close'] > curr['sma_20']) + (curr['close'] > curr['sma_60']) + (curr['close'] > curr['sma_120'])
+            # 추세 가점 수동 복기용 계산 (불리언 버그 방지를 위해 정수 변환)
+            tr_score = int(curr['close'] > curr['sma_20']) + int(curr['close'] > curr['sma_60']) + int(curr['close'] > curr['sma_120'])
             
             ranking_data.append({
                 "종목명": name,
