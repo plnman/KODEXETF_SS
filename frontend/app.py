@@ -119,9 +119,18 @@ def main():
 
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.5 - Absolute Integrity)")
+    # -------------------------------------------------------------------------------------
+    # [V3.1.6] 데이터 트레이서 (Tracing Raw Integrity for Debugging)
+    # -------------------------------------------------------------------------------------
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.6)")
     
-    with st.spinner("데이터 동기화 및 V3.1.3 지능형 레짐 분석 중..."):
+    with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
+        st.write(f"**캐시 버스터 타임스탬프:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"**yfinance가 뱉은 원본 컬럼:** `{list(data.columns)}`")
+        for raw_tk in TARGET_ETFS.keys():
+            st.write(f"**{TARGET_ETFS[raw_tk]} ({raw_tk}) 추출 가격 (Close):** `{data['Close'][raw_tk].iloc[-1] if 'Close' in data and raw_tk in data['Close'] else 'N/A'}`")
+
+    with st.spinner("데이터 동기화 및 V3.1.6 지능형 레짐 분석 중..."):
         all_signals, is_bull_now = load_and_process_data_v3_1_2()
         
         # [NEW] 무결성 블랙박스 (Integrity Monitor) 상단 배치
