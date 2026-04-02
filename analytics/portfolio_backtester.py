@@ -131,5 +131,8 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 5000
         "cagr": round(cagr, 2),
         "mdd": round(mdd, 2),
         "history": df_history,
-        "trades_df": df_trades
+        "trades_df": df_trades,
+        "start_date": df_history['date'].iloc[0],
+        "end_date": df_history['date'].iloc[-1],
+        "total_days": len(df_history)
     }
