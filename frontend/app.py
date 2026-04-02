@@ -103,7 +103,7 @@ def load_and_process_data_v3_1_2():
     # 현재 레짐 상태 (최신일 기준)
     is_bull_now = regime_series.iloc[-1]
     
-    return all_signals, is_bull_now
+    return all_signals, is_bull_now, data
 
 def main():
     st.sidebar.title("🛠️ 전략 설정 (Control)")
@@ -124,14 +124,24 @@ def main():
     # -------------------------------------------------------------------------------------
     st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.6)")
     
-    with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
-        st.write(f"**캐시 버스터 타임스탬프:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.write(f"**yfinance가 뱉은 원본 컬럼:** `{list(data.columns)}`")
-        for raw_tk in TARGET_ETFS.keys():
-            st.write(f"**{TARGET_ETFS[raw_tk]} ({raw_tk}) 추출 가격 (Close):** `{data['Close'][raw_tk].iloc[-1] if 'Close' in data and raw_tk in data['Close'] else 'N/A'}`")
-
     with st.spinner("데이터 동기화 및 V3.1.6 지능형 레짐 분석 중..."):
-        all_signals, is_bull_now = load_and_process_data_v3_1_2()
+        all_signals, is_bull_now, raw_data = load_and_process_data_v3_1_2()
+        
+        with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (SSoT Raw Check)"):
+            st.write(f"**캐시 버스터 타임스탬프:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            st.write(f"**yfinance가 뱉은 원본 컬럼:** `{list(raw_data.columns) if raw_data is not None else 'N/A'}`")
+            for raw_tk, name in TARGET_ETFS.items():
+                price = 'N/A'
+                if raw_data is not None:
+                    # [V3.1.6] Ticker-Attribute 매핑 전수 조사 (Close 가격 추적)
+                    for c in raw_data.columns:
+                        if isinstance(c, tuple) and raw_tk in c and 'Close' in c:
+                            price = f"{raw_data[c].iloc[-1]:,.0f}원"
+                            break
+                        elif c == 'Close' and len(TARGET_ETFS) == 1:
+                            price = f"{raw_data[c].iloc[-1]:,.0f}원"
+                            break
+                st.write(f"**{name} ({raw_tk}) 추출 가격:** `{price}`")
         
         # [NEW] 무결성 블랙박스 (Integrity Monitor) 상단 배치
         st.markdown("### 🩺 데이터 무결성 실시간 감시장치 (Integrity Monitor)")
