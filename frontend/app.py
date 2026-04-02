@@ -57,17 +57,25 @@ def load_and_process_data_v3_1_2():
         df_clean = pd.DataFrame(index=common_dates)
         for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
             try:
-                # [무결성 FIX] 계층 구조(level)에 의존하지 않고 안전하게 열 추출
-                if (col, raw_ticker) in data.columns:
-                    df_clean[col.lower()] = data[(col, raw_ticker)]
-                elif (raw_ticker, col) in data.columns:
-                    df_clean[col.lower()] = data[(raw_ticker, col)]
+                # [V3.1.5] 극강의 핀셋 매핑: 멀티인덱스 모든 경우의 수 전수 조사
+                # (Attribute, Ticker) 또는 (Ticker, Attribute) 모두 대응
+                target_col = None
+                for c_idx in data.columns:
+                    if isinstance(c_idx, tuple):
+                        if c_idx[0] == col and c_idx[1] == raw_ticker:
+                            target_col = c_idx
+                            break
+                        if c_idx[1] == col and c_idx[0] == raw_ticker:
+                            target_col = c_idx
+                            break
+                    elif c_idx == col and len(TARGET_ETFS) == 1:
+                        target_col = c_idx
+                        break
+                
+                if target_col is not None:
+                    df_clean[col.lower()] = data[target_col]
                 else:
-                    # [V3.1.4] 1개 티커만 있을 때의 Single Index 대응
-                    if col in data.columns:
-                        df_clean[col.lower()] = data[col]
-                    else:
-                        df_clean[col.lower()] = 0.0
+                    df_clean[col.lower()] = 0.0
             except Exception as e:
                 st.warning(f"⚠️ {name} 데이터 추출 중 오류: {e}")
                 df_clean[col.lower()] = 0.0
@@ -111,7 +119,7 @@ def main():
 
     st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
 
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.3)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.1.5 - Absolute Integrity)")
     
     with st.spinner("데이터 동기화 및 V3.1.3 지능형 레짐 분석 중..."):
         all_signals, is_bull_now = load_and_process_data_v3_1_2()
