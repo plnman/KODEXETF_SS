@@ -254,9 +254,36 @@ def main():
                     color_hex = "#AAAAAA"
                 
                 with cols[i]:
+                    # 4조건 판독
+                    params = TICKER_PARAMS.get(name, {'k': 0.5, 'mfi': 60, 'adx_threshold': 20})
+                    mfi_thr = params['mfi']
+                    adx_thr = params['adx_threshold']
+                    
+                    c1_pass = curr_p >= target_p
+                    c2_pass = df_curr.get('mfi', 0) > mfi_thr
+                    c3_pass = df_curr.get('intraday_intensity', 0) > 0
+                    c4_pass = df_curr.get('adx_14', 0) > adx_thr
+                    passed = sum([c1_pass, c2_pass, c3_pass, c4_pass])
+                    
+                    def ck(b): return "✅" if b else "❌"
+                    
+                    # RS 순위
+                    rs_rank = [x[0] for x in sorted(valid_signals, key=lambda x: x[1], reverse=True)].index(name) + 1
+                    rs_rank_txt = f"🏆 RS {rs_rank}위" if rs_rank <= 3 else f"RS {rs_rank}위"
+                    
+                    if passed == 4:
+                        conclusion = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
+                    elif passed == 3:
+                        conclusion = "<span style='color:#FFA500;'>⏳ 조건 1개 미달 (근접)</span>"
+                    else:
+                        conclusion = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
+                    
                     st.markdown(f"""
                     <div style="border:1px solid #444; border-radius:10px; padding:15px; margin-bottom:10px; background-color:#1e1e1e;">
-                        <h3 style="margin:0; color:#fff;">{name}</h3>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <h3 style="margin:0; color:#fff;">{name}</h3>
+                            <span style="font-size:0.8rem; color:#aaa;">{rs_rank_txt}</span>
+                        </div>
                         <p style="margin:5px 0; color:{color_hex}; font-weight:bold; font-size:1.2rem;">{sig_status}</p>
                         <hr style="margin:10px 0; border:0.5px solid #333;">
                         <div style="display:flex; justify-content:space-between;">
@@ -267,6 +294,15 @@ def main():
                             <span>📉 현재가</span>
                             <span>{curr_p:,.0f}원</span>
                         </div>
+                        <hr style="margin:10px 0; border:0.5px solid #333;">
+                        <div style="font-size:0.85rem; color:#ccc;">
+                            <div>{ck(c1_pass)} 가격 돌파 &nbsp;<span style='color:#888;'>({curr_p:,.0f} {'≥' if c1_pass else '<'} {target_p:,.0f})</span></div>
+                            <div>{ck(c2_pass)} 스마트머니(MFI) &nbsp;<span style='color:#888;'>({df_curr.get('mfi',0):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
+                            <div>{ck(c3_pass)} 일봉 지배력(II) &nbsp;<span style='color:#888;'>({'지배' if c3_pass else '미지배'})</span></div>
+                            <div>{ck(c4_pass)} 추세 강도(ADX) &nbsp;<span style='color:#888;'>({df_curr.get('adx_14',0):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
+                        </div>
+                        <hr style="margin:8px 0; border:0.5px solid #333;">
+                        <div style="font-size:0.85rem;">{conclusion}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -352,7 +388,7 @@ def main():
         
         rank_raw_df = pd.DataFrame(ranking_data).sort_values("복합RS(Composite)", ascending=False)
         st.write("**현재 상동한 랭킹 정렬의 실시간 엔진 내부 수치입니다.** (추세 점수가 낮은 역배열 종목은 후순위로 자동 배치)")
-        st.table(rank_raw_df)
+        st.table(rank_raw_df.reset_index(drop=True))
 
         st.markdown("""
         ### ⚖️ 무결성 선언
