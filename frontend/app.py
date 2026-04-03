@@ -415,12 +415,12 @@ def main():
             ranking_data.append({
                 "종목명": name,
                 "현재가 (T)": f"{curr['close']:,.0f}원",
-                "수익률(RS_20)": f"{curr['rs_20']*100:+.2f}%",
+                "20일 등락률 [(P_now/P_20d)-1]": f"{curr['rs_20']*100:+.2f}%",
                 "추세 가점(0~3)": f"{tr_score}점",
-                "복합RS(Composite)": f"{curr['composite_rs']*100:+.2f}%"
+                "복합RS [등락률 × (1 + 0.5×추세점수)]": f"{curr['composite_rs']*100:+.2f}%"
             })
         
-        rank_raw_df = pd.DataFrame(ranking_data).sort_values("복합RS(Composite)", ascending=False)
+        rank_raw_df = pd.DataFrame(ranking_data).sort_values("복합RS [등락률 × (1 + 0.5×추세점수)]", ascending=False)
         st.write("**현재 상동한 랭킹 정렬의 실시간 엔진 내부 수치입니다.** (추세 점수가 낮은 역배열 종목은 후순위로 자동 배치)")
         st.table(rank_raw_df.reset_index(drop=True))
 
