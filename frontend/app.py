@@ -15,7 +15,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.4.0 Engine Identity]
-APP_VERSION = "V3.4.0.1" 
+APP_VERSION = "V3.4.0.2" 
 APP_BUILD_DATE = "2026-04-03" 
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
@@ -126,7 +126,7 @@ def main():
     """, unsafe_allow_html=True)
 
     # === 상단 전략 컨트롤 패널 (기존 사이드바에서 이동) ===
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.4.0 Gemini 3.1 Pro)")
+    st.title(f"🔥 KODEX IRP 실전 매매 컨트롤 타워 ({APP_VERSION} Stable)")
     
     with st.container():
         c_mode, c_info = st.columns([3, 1])
@@ -384,19 +384,17 @@ def main():
                 # DataFrame display
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
-                # [V3.4.0 Final] 100% 무결성 다운로드 (Base64 방식)
-                # st.download_button 대신 브라우저 사이드에서 즉시 다운로드되는 Base64 링크를 제공하여
-                # Streamlit Cloud의 미디어 링크 만료 오류(UUID 파일명)를 원천 차단합니다.
+                # [V3.4.0.2 FINAL STABLE] MIME 및 HTML 속성 재교정
                 csv_str = trades_df.to_csv(index=False, encoding='utf-8-sig')
                 b64_csv = base64.b64encode(csv_str.encode('utf-8-sig')).decode()
                 
-                # 버튼 스타일을 입힌 HTML 링크 생성
+                # 버튼 스타일을 입힌 HTML 링크 생성 (Deep Blue #1f77b4 로 색상 교체하여 반영 여부 시각화)
                 download_href = f'''
-                    <a href="data:file/csv;base64,{b64_csv}" download="kodex_irp_trade_logs.csv" 
+                    <a href="data:text/csv;base64,{b64_csv}" download="kodex_irp_trade_logs.csv" 
                        style="text-decoration:none;">
                         <div style="
                             padding: 10px 20px;
-                            background-color: #ff4b4b;
+                            background-color: #1f77b4;
                             color: white;
                             border-radius: 8px;
                             text-align: center;
@@ -406,7 +404,7 @@ def main():
                             display: inline-block;
                             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
                         ">
-                            📥 전체 매매 일지 엑셀(CSV) 다운로드 (Excel 호환)
+                            📥 전체 매매 일지 엑셀(CSV) 다운로드 (V3.4.0.2 Stable)
                         </div>
                     </a>
                 '''
