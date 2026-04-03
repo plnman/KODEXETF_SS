@@ -127,7 +127,7 @@ def main():
     """, unsafe_allow_html=True)
 
     # === 상단 전략 컨트롤 패널 (기존 사이드바에서 이동) ===
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.5)")
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.4.0 Gemini 3.1 Pro)")
     
     with st.container():
         c_mode, c_info = st.columns([3, 1])
@@ -178,7 +178,7 @@ def main():
         
         # [NEW] 무결성 블랙박스 (Integrity Monitor) 상단 배치
         st.markdown("### 🩺 데이터 무결성 실시간 감시장치 (Integrity Monitor)")
-        port_res = run_portfolio_backtest(all_signals, initial_capital=50000000.0, max_tickers=max_tickers, weight_per_ticker=weight_per_ticker)
+        port_res = run_portfolio_backtest(all_signals, initial_capital=50000000.0, max_tickers=max_tickers, use_cash_sweep=True)
         
         # -------------------------------------------------------------------------------------
         # [V3.3.0 INTEGRITY ENGINE] DUAL-SOURCE VERIFICATION & AUTO-JOURNAL
@@ -245,7 +245,7 @@ def main():
         return
 
     today_date = max(df['date'].max() for df in all_signals.values())
-    regime_text = "🔥 [공격 모드: 불장 가속]" if is_bull_now else "🛡️ [안정 모드: 시스템 안정]"
+    regime_text = "🔥 [공격 모드: V3.4.0 Turbo 가속 + 박멸 엔진 ON]" if is_bull_now else "🛡️ [안정 모드: V3.4.0 시스템 방어 ON]"
     st.info(f"최신 타점 갱신일: **{today_date}** | 시스템 엔진 상태: {regime_text}")
         
     tab1, tab4, tab2, tab3 = st.tabs([
