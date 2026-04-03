@@ -38,13 +38,19 @@ def get_market_regime(market_df: pd.DataFrame) -> pd.Series:
     adx_std = df['adx_14'].rolling(window=window).std()
     z_score = (df['adx_14'] - adx_mean) / adx_std
     
-    # 히스테리시스 적용 (Bull: 2.0 이상 진입, 1.0 미만 시 퇴거)
+    # 히스테리시스 적용 (Bull: Z-Score 2.0 이상 & MFI 40 이상 진입, 1.0 미만 시 퇴거)
     regime = []
     curr = False
-    for z in z_score:
-        if pd.isna(z): regime.append(False); continue
-        if not curr and z > 2.0: curr = True
-        elif curr and z < 1.0: curr = False
+    for i, z in enumerate(z_score):
+        if pd.isna(z): 
+            regime.append(False)
+            continue
+        # [V3.4.0 Global MFI Filter] 시장 전체 유동성(MFI) 40 이상 허가
+        mfi_ok = True
+        if 'mfi' in df.columns: mfi_ok = df['mfi'].iloc[i] > 40
+        
+        if not curr and z > 2.0 and mfi_ok: curr = True
+        elif curr and (z < 1.0): curr = False
         regime.append(curr)
     return pd.Series(regime, index=df.index)
 
@@ -127,8 +133,8 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     else:
         is_bull_v = is_bull_market
 
-    # 불장일 경우 변동성 돌파 기준(K)을 20% 낮춰서(할인) 더 공격적으로 진입
-    df['k_adj'] = np.where(is_bull_v, k_orig * 0.8, k_orig)
+    # [V3.4.0 Turbo-K] 불장일 경우 변동성 돌파 기준(K)을 50% 대폭 낮춰서(0.8->0.4 효과) 초고속 진입
+    df['k_adj'] = np.where(is_bull_v, k_orig * 0.5, k_orig)
     
     df['range'] = df['high'] - df['low']
     df['prev_range'] = df['range'].shift(1)

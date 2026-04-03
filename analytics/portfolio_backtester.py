@@ -76,9 +76,11 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 5000
                         if holds_ticker in today_rows:
                             current_portfolio_value += pos['qty'] * today_rows[holds_ticker]['open']
                             
-                    # 매수 비중: 인자로 전달받은 weight_per_ticker 사용
-                    target_invest_amount = current_portfolio_value * weight_per_ticker
-                    if capital >= target_invest_amount:
+                    # [V3.4.0] 안전한 예수금 박멸 (Dynamic Cash Sweep)
+                    rem_slots = max_tickers - len(positions)
+                    target_invest_amount = (capital * 0.998) / rem_slots if rem_slots > 0 else 0
+                    
+                    if capital >= target_invest_amount > 0:
                         qty = int(target_invest_amount // row['open'])
                         if qty > 0:
                             capital -= qty * row['open']

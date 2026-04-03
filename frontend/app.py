@@ -186,7 +186,8 @@ def main():
         # 1. 야후-네이버 이중 가격 검증 수행 (Cross-Check)
         dual_integrity = verify_dual_source_integrity(all_signals)
         
-        BASELINE_RET = 226.38  # [V3.3.5] 실측 기준값 (3종목 모드 실제 수익률)
+        # [V3.4.0] 정밀 벡터 가속(np.where) + 예수금 박멸 통합
+        BASELINE_RET = 229.37  # [V3.4.0] 무결성 사수: T+1 매수 + 박멸 + 터보(0.5 할인) 실측 기준점
         current_ret = port_res.get('cumulative_return', 0.0)
         diff_ret = current_ret - BASELINE_RET
         
@@ -213,7 +214,7 @@ def main():
                     "cumulative_return": float(current_ret),
                     "cagr": float(port_res.get('cagr', 0.0)),
                     "mdd": float(port_res.get('mdd', 0.0)),
-                    "version": "V3.3.5"
+                    "version": "V3.4.0"
                 }
                 supabase.table('backtest_history').upsert(journal_payload).execute()
                 st.sidebar.success(f"📈 [16:00 정례 동기화] 오늘자 수익률({current_ret:.2f}%) 기록 완료")
