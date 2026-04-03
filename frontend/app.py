@@ -99,23 +99,20 @@ def load_and_process_data_v3_1_2():
     return all_signals, is_bull_now, k200_data
 
 def main():
-    # [Custom CSS] 폰트 크기 30% 증대 및 고대비 색상 강제 적용
+    # [Custom CSS] 폰트 크기 증대 및 검은 카드 전용 스타일
     st.markdown("""
         <style>
-            /* 모든 텍스트, p, span, caption 크기 및 고대비 백색 강제 */
-            .stMarkdown p, .stCaption, div[data-testid="stCaptionContainer"], span, div {
-                font-size: 1.15rem !important; 
-                color: #FFFFFF !important;    /* 희미한 색 제거, 순백색 강제 */
+            /* 일반 텍스트 크기만 소폭 증대 (색상은 기본값 복구) */
+            .stMarkdown p, .stCaption, div[data-testid="stCaptionContainer"] {
+                font-size: 1.1rem !important; 
             }
-            /* h1, h2, h3 등 제목 계열은 더 크고 선명하게 */
+            /* h1, h2, h3 제목 계열 굵게 유지 */
             h1, h2, h3 {
-                color: #FFFFFF !important;
                 font-weight: 800 !important;
             }
-            /* 테이블 내부 텍스트 크기 및 대비 */
+            /* 테이블 내부 텍스트 크기만 조정 (색상 복구) */
             .stTable td, .stTable th, [data-testid="stTable"] {
-                font-size: 1.1rem !important;
-                color: #FFFFFF !important;
+                font-size: 1.05rem !important;
             }
             /* 사이드바 제거 시 메인 영역 확장 최적화 */
             section[data-testid="stSidebar"] {
