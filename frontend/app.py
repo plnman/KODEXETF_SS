@@ -99,22 +99,54 @@ def load_and_process_data_v3_1_2():
     return all_signals, is_bull_now, k200_data
 
 def main():
-    st.sidebar.title("🛠️ 전략 설정 (Control)")
-    strat_mode = st.sidebar.radio(
-        "전략 운용 모드 선택 (종목 수)",
-        ["🚀 3종목 집중 투자 (수익률형)", "🛡️ 5종목 균형 투자 (표준형)", "🏦 10종목 전방위 투자 (안정형)"],
-        index=0
-    )
-    
-    max_tickers = {"🚀 3종목 집중 투자 (수익률형)": 3, "🛡️ 5종목 균형 투자 (표준형)": 5, "🏦 10종목 전방위 투자 (안정형)": 10}[strat_mode]
-    weight_per_ticker = 1.0 / max_tickers
+    # [Custom CSS] 폰트 크기 30% 증대 및 고대비 색상 강제 적용
+    st.markdown("""
+        <style>
+            /* 일반 텍스트 및 캡션 크기 증대 */
+            .stMarkdown p, .stCaption, div[data-testid="stCaptionContainer"] {
+                font-size: 1.15rem !important; /* 약 30% 증대 (기존 0.8~0.9rem) */
+                color: #FFFFFF !important;    /* 희미한 색 제거, 순백색 강제 */
+            }
+            /* 테이블 내부 텍스트 크기 및 대비 */
+            .stTable td, .stTable th, [data-testid="stTable"] {
+                font-size: 1.1rem !important;
+                color: #FFFFFF !important;
+            }
+            /* 사이드바 제거 시 메인 영역 확장 최적화 */
+            section[data-testid="stSidebar"] {
+                width: 0px !important;
+                display: none !important;
+            }
+            .main .block-container {
+                max-width: 95% !important;
+                padding-top: 2rem !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
-    st.sidebar.info(f"설정: **{max_tickers}종목** 운용 | 비중: **{weight_per_ticker*100:.1f}%**")
+    # === 상단 전략 컨트롤 패널 (기존 사이드바에서 이동) ===
+    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.5)")
+    
+    with st.container():
+        c_mode, c_info = st.columns([3, 1])
+        with c_mode:
+            strat_mode = st.radio(
+                "🎯 전략 운용 모드 선택 (종목 수)",
+                ["🚀 3종목 집중 투자 (수익률형)", "🛡️ 5종목 균형 투자 (표준형)", "🏦 10종목 전방위 투자 (안정형)"],
+                index=0,
+                horizontal=True
+            )
+        
+        max_tickers = {"🚀 3종목 집중 투자 (수익률형)": 3, "🛡️ 5종목 균형 투자 (표준형)": 5, "🏦 10종목 전방위 투자 (안정형)": 10}[strat_mode]
+        weight_per_ticker = 1.0 / max_tickers
+        
+        with c_info:
+            st.info(f"**{max_tickers}종목** | 비중: **{weight_per_ticker*100:.1f}%**")
 
     # -------------------------------------------------------------------------------------
     # [V3.3.4] 무결성 추적 및 성과 데이터센터 (Definitive Truth - REFRESHED)
     # -------------------------------------------------------------------------------------
-    st.title("🔥 KODEX IRP 실전 매매 컨트롤 타워 (V3.3.5 - Optimized Params Restored)")
+
     
     # [v3.3.3] 무결성 배지 (Integrity Status Badge) 최상단 배치
     c_badge1, c_badge2 = st.columns([1, 4])
@@ -279,30 +311,30 @@ def main():
                         conclusion = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
                     
                     st.markdown(f"""
-                    <div style="border:1px solid #444; border-radius:10px; padding:15px; margin-bottom:10px; background-color:#1e1e1e;">
+                    <div style="border:2px solid #666; border-radius:12px; padding:20px; margin-bottom:15px; background-color:#1e1e1e; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <h3 style="margin:0; color:#fff;">{name}</h3>
-                            <span style="font-size:0.8rem; color:#aaa;">{rs_rank_txt}</span>
+                            <h2 style="margin:0; color:#fff; font-size:1.6rem;">{name}</h2>
+                            <span style="font-size:1.1rem; color:#fff; font-weight:bold;">{rs_rank_txt}</span>
                         </div>
-                        <p style="margin:5px 0; color:{color_hex}; font-weight:bold; font-size:1.2rem;">{sig_status}</p>
-                        <hr style="margin:10px 0; border:0.5px solid #333;">
-                        <div style="display:flex; justify-content:space-between;">
+                        <p style="margin:10px 0; color:{color_hex}; font-weight:bold; font-size:1.5rem;">{sig_status}</p>
+                        <hr style="margin:12px 0; border:1px solid #444;">
+                        <div style="display:flex; justify-content:space-between; font-size:1.2rem;">
                             <span>🎯 돌파 목표가</span>
                             <span style="font-weight:bold; color:#ffdd44;">{target_p:,.0f}원</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between;">
+                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:5px;">
                             <span>📉 현재가</span>
-                            <span>{curr_p:,.0f}원</span>
+                            <span style="color:#fff;">{curr_p:,.0f}원</span>
                         </div>
-                        <hr style="margin:10px 0; border:0.5px solid #333;">
-                        <div style="font-size:0.85rem; color:#ccc;">
-                            <div>{ck(c1_pass)} 가격 돌파 &nbsp;<span style='color:#888;'>({curr_p:,.0f} {'≥' if c1_pass else '<'} {target_p:,.0f})</span></div>
-                            <div>{ck(c2_pass)} 스마트머니(MFI) &nbsp;<span style='color:#888;'>({df_curr.get('mfi',0):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
-                            <div>{ck(c3_pass)} 일봉 지배력(II) &nbsp;<span style='color:#888;'>({'지배' if c3_pass else '미지배'})</span></div>
-                            <div>{ck(c4_pass)} 추세 강도(ADX) &nbsp;<span style='color:#888;'>({df_curr.get('adx_14',0):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
+                        <hr style="margin:12px 0; border:1px solid #444;">
+                        <div style="font-size:1.1rem; color:#fff; line-height:1.6;">
+                            <div style="margin-bottom:4px;">{ck(c1_pass)} <b>가격 돌파</b> &nbsp; <span style='color:#DDD;'>({curr_p:,.0f} {'≥' if c1_pass else '<'} {target_p:,.0f})</span></div>
+                            <div style="margin-bottom:4px;">{ck(c2_pass)} <b>스마트머니(MFI)</b> &nbsp; <span style='color:#DDD;'>({df_curr.get('mfi',0):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
+                            <div style="margin-bottom:4px;">{ck(c3_pass)} <b>일봉 지배력(II)</b> &nbsp; <span style='color:#DDD;'>({'지배(양수)' if c3_pass else '미지배(음수)'})</span></div>
+                            <div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style='color:#DDD;'>({df_curr.get('adx_14',0):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
                         </div>
-                        <hr style="margin:8px 0; border:0.5px solid #333;">
-                        <div style="font-size:0.85rem;">{conclusion}</div>
+                        <hr style="margin:12px 0; border:1px solid #444;">
+                        <div style="font-size:1.2rem; font-weight:bold;">{conclusion}</div>
                     </div>
                     """, unsafe_allow_html=True)
 
