@@ -356,6 +356,27 @@ def main():
             for y, ir, ko in zip(y_last.index.year, irp_p, ko_p):
                 y_data.append({"연도": f"{y}년", "IRP 수익률": ir, "KOSPI 200": ko, "Alpha": f"{ir-ko:+.2f}%"})
             st.dataframe(pd.DataFrame(y_data), use_container_width=True, hide_index=True)
+            
+            st.divider()
+            st.subheader("📚 백테스트 상세 매매 일지 (Trade Logs)")
+            trades_df = port_res['trades_df']
+            
+            if not trades_df.empty:
+                # 콤마 및 포맷팅 처리
+                styled_trades = trades_df.copy()
+                # DataFrame display
+                st.dataframe(styled_trades, use_container_width=True, hide_index=True)
+                
+                # CSV 다운로드 버튼
+                csv = trades_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+                st.download_button(
+                    label="📥 전체 매매 일지 엑셀(CSV) 다운로드",
+                    data=csv,
+                    file_name='irp_trade_logs.csv',
+                    mime='text/csv',
+                )
+            else:
+                st.info("기간 내에 발생한 매매 내역이 없습니다.")
 
     # === TAB 3: 알고리즘 무결성 진단 (투명화 고도화) ===
     with tab3:

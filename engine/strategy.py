@@ -134,6 +134,7 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
         is_bull_v = is_bull_market
 
     # [V3.4.0 Turbo-K] 불장일 경우 변동성 돌파 기준(K)을 낮춰서 진입
+    df['is_bull_market'] = is_bull_v
     df['k_adj'] = np.where(is_bull_v, k_orig * turbo_discount, k_orig)
     
     df['range'] = df['high'] - df['low']

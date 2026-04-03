@@ -54,11 +54,12 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
                     trade_logs.append({
                         "종목명": ticker,
                         "진입일자": pos['entry_date'],
+                        "매수사유": pos.get('buy_reason', '기본 매수'),
                         "진입단가": round(pos['entry_price'], 0),
                         "매수수량": int(pos['qty']),
                         "청산일자": current_date,
-                        "청산단가": round(exit_price, 0),
                         "청산사유": exit_reason,
+                        "청산단가": round(exit_price, 0),
                         "수익률(%)": round(((exit_price / pos['entry_price']) - 1) * 100, 2),
                         "수익금액": round(profit_amt, 0)
                     })
@@ -88,11 +89,17 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
                         qty = int(target_invest_amount // row['open'])
                         if qty > 0:
                             capital -= qty * row['open']
+                            
+                            buy_reason = "기본 돌파 매수"
+                            if row.get('is_bull_market', False) == True:
+                                buy_reason = "Turbo-K 가속 진입 (유동성 확인)"
+                                
                             positions[ticker] = {
                                 'qty': qty,
                                 'entry_price': row['open'],
                                 'entry_date': current_date,
-                                'hard_stop_pct': row['hard_stop_loss_pct']
+                                'hard_stop_pct': row['hard_stop_loss_pct'],
+                                'buy_reason': buy_reason
                             }
 
         # [3] 스크리닝 (주도주 필터링) - [가변 종목 수 지원]
