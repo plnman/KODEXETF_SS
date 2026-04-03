@@ -187,7 +187,7 @@ def main():
         dual_integrity = verify_dual_source_integrity(all_signals)
         
         # [V3.4.0] 정밀 벡터 가속(np.where) + 예수금 박멸 통합
-        BASELINE_RET = 229.37  # [V3.4.0] 무결성 사수: T+1 매수 + 박멸 + 터보(0.5 할인) 실측 기준점
+        BASELINE_RET = 288.13  # [V3.4.0] 무결성 사수: T+1 매수 + 박멸 + 터보 실측 기준점 (UI Native Value)
         current_ret = port_res.get('cumulative_return', 0.0)
         diff_ret = current_ret - BASELINE_RET
         
