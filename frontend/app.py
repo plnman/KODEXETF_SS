@@ -35,6 +35,11 @@ def convert_df_to_csv(df):
     return df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
 
 @st.cache_data(ttl=3600)
+def cached_run_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep):
+    """백테스팅 연산 결과 캐싱 (다운로드 시 오차 및 타임아웃 방지)"""
+    return run_portfolio_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep)
+
+@st.cache_data(ttl=3600)
 def load_and_process_data_v3_1_2():
     TARGET_ETFS = {
         "069500.KS": "KODEX 200", 
@@ -167,7 +172,7 @@ def main():
         
         # [NEW] 무결성 블랙박스 (Integrity Monitor) 상단 배치
         st.markdown("### 🩺 데이터 무결성 실시간 감시장치 (Integrity Monitor)")
-        port_res = run_portfolio_backtest(all_signals, initial_capital=50000000.0, max_tickers=max_tickers, use_cash_sweep=True)
+        port_res = cached_run_backtest(all_signals, 50000000.0, max_tickers, True)
         
         # -------------------------------------------------------------------------------------
         # [V3.3.0 INTEGRITY ENGINE] DUAL-SOURCE VERIFICATION & AUTO-JOURNAL
