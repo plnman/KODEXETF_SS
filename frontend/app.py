@@ -270,32 +270,7 @@ def main():
                     </div>
                     """, unsafe_allow_html=True)
 
-        st.markdown("---")
-        with st.form("trade_log_form"):
-            st.subheader("💡 실체결 장부 기입 (Manual Action)")
-            ticker_to_log = st.selectbox("종목 선택", list(all_signals.keys()))
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                exec_date = st.date_input("날짜", value=datetime.now())
-                action = st.radio("구분", ["BUY", "SELL"])
-            with c2:
-                real_price = st.number_input("체결 단가", min_value=0, step=10)
-                qty = st.number_input("수량", min_value=0, step=1)
-            with c3:
-                algo_row = all_signals[ticker_to_log].iloc[-1]
-                st.write(f"**권고가:** {algo_row['target_break_price']:,.0f}원")
-                st.write(f"**변동성 손절가:** {algo_row['hard_stop_loss_pct']:,.2f}% 하회 시")
-            if st.form_submit_button("실체결 데이터 DB 기록"):
-                try:
-                    payload = {
-                        "signal_date": today_date, "execute_date": exec_date.strftime("%Y-%m-%d"),
-                        "ticker": ticker_to_log, "action": action,
-                        "real_price": float(real_price), "algo_price": float(algo_row['target_break_price']),
-                        "quantity": int(qty)
-                    }
-                    supabase.table('live_trades').insert(payload).execute()
-                    st.success(f"✅ {ticker_to_log} 기록 완료")
-                except Exception as e: st.error(f"❌ 실패: {e}")
+        st.caption("📡 매일 오후 4시, 시그널 발생 종목이 자동으로 '실전 성과 궤적' 탭에 기록됩니다.")
 
     # === TAB 2: 백테스팅 종합 대시보드 ===
     with tab2:
