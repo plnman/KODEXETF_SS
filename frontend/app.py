@@ -27,6 +27,13 @@ V3_1_PARAMS = {
     "Z_SCORE_WINDOW": 20
 }
 
+@st.cache_data
+def convert_df_to_csv(df):
+    """Excel 호환성을 위해 UTF-8-SIG 인코딩으로 변환 및 캐싱"""
+    if df.empty:
+        return b""
+    return df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+
 @st.cache_data(ttl=3600)
 def load_and_process_data_v3_1_2():
     TARGET_ETFS = {
@@ -368,11 +375,11 @@ def main():
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
                 # CSV 다운로드 버튼
-                csv = trades_df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+                csv_data = convert_df_to_csv(trades_df)
                 st.download_button(
                     label="📥 전체 매매 일지 엑셀(CSV) 다운로드",
-                    data=csv,
-                    file_name='irp_trade_logs.csv',
+                    data=csv_data,
+                    file_name=f'irp_trade_logs_{datetime.now().strftime("%Y%m%d")}.csv',
                     mime='text/csv',
                 )
             else:
@@ -390,7 +397,7 @@ def main():
             st.info(f"**현재 상태:** {regime_status}")
             
             # 레짐 판독 공식 공시
-            st.markdown("""
+            st.markdown(r"""
             **[레짐 판독 로직]**
             - **기준:** KODEX 200의 ADX 14일선 Z-Score
             - **공식:** $Z = (ADX_{now} - ADX_{\mu}) / ADX_{\sigma}$
