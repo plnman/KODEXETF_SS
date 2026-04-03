@@ -28,7 +28,7 @@ def calculate_dynamic_k(sigma_20: float, sigma_avg: float, k_base: float) -> flo
     k_adj = k_base * (sigma_20 / sigma_avg)
     return max(0.2, min(k_adj, 0.8))
 
-def get_market_regime(market_df: pd.DataFrame) -> pd.Series:
+def get_market_regime(market_df: pd.DataFrame, use_global_mfi: bool = True) -> pd.Series:
     """
     [V3.1] 시장(K200)의 ADX Z-Score를 기반으로 레짐(Bull/Stable)을 판독합니다.
     """
@@ -47,14 +47,14 @@ def get_market_regime(market_df: pd.DataFrame) -> pd.Series:
             continue
         # [V3.4.0 Global MFI Filter] 시장 전체 유동성(MFI) 40 이상 허가
         mfi_ok = True
-        if 'mfi' in df.columns: mfi_ok = df['mfi'].iloc[i] > 40
+        if use_global_mfi and 'mfi' in df.columns: mfi_ok = df['mfi'].iloc[i] > 40
         
         if not curr and z > 2.0 and mfi_ok: curr = True
         elif curr and (z < 1.0): curr = False
         regime.append(curr)
     return pd.Series(regime, index=df.index)
 
-def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", overrides: dict = None, is_bull_market = False) -> pd.DataFrame:
+def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", overrides: dict = None, is_bull_market = False, turbo_discount: float = 0.5) -> pd.DataFrame:
     """
     [V3.1 지능형 하이브리드 엔진]
     is_bull_market: 실전 매매 시에는 현재 레짐(bool), 백테스트 시에는 날짜별 레짐(Series)을 입력받습니다.
@@ -133,8 +133,8 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     else:
         is_bull_v = is_bull_market
 
-    # [V3.4.0 Turbo-K] 불장일 경우 변동성 돌파 기준(K)을 50% 대폭 낮춰서(0.8->0.4 효과) 초고속 진입
-    df['k_adj'] = np.where(is_bull_v, k_orig * 0.5, k_orig)
+    # [V3.4.0 Turbo-K] 불장일 경우 변동성 돌파 기준(K)을 낮춰서 진입
+    df['k_adj'] = np.where(is_bull_v, k_orig * turbo_discount, k_orig)
     
     df['range'] = df['high'] - df['low']
     df['prev_range'] = df['range'].shift(1)

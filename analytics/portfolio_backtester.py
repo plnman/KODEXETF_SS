@@ -1,6 +1,6 @@
 import pandas as pd
 
-def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 50000000.0, max_tickers: int = 10, weight_per_ticker: float = 0.1) -> dict:
+def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 10000000.0, max_tickers: int = 3, use_cash_sweep: bool = True) -> dict:
     daily_data = {}
     for ticker, df in all_signals_dict.items():
         daily_data[ticker] = df.set_index('date')
@@ -76,9 +76,13 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 5000
                         if holds_ticker in today_rows:
                             current_portfolio_value += pos['qty'] * today_rows[holds_ticker]['open']
                             
-                    # [V3.4.0] 안전한 예수금 박멸 (Dynamic Cash Sweep)
-                    rem_slots = max_tickers - len(positions)
-                    target_invest_amount = (capital * 0.998) / rem_slots if rem_slots > 0 else 0
+                    # [V3.4.0] 안전한 예수금 박멸 (Dynamic Cash Sweep) or Base 1/N
+                    if use_cash_sweep:
+                        rem_slots = max_tickers - len(positions)
+                        target_invest_amount = (capital * 0.998) / rem_slots if rem_slots > 0 else 0
+                    else:
+                        weight_per_ticker = 1.0 / max_tickers
+                        target_invest_amount = current_portfolio_value * weight_per_ticker
                     
                     if capital >= target_invest_amount > 0:
                         qty = int(target_invest_amount // row['open'])
