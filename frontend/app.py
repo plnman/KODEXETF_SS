@@ -15,7 +15,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.4.0 Engine Identity]
-APP_VERSION = "V3.4.0.3" 
+APP_VERSION = "V3.4.0.4" 
 APP_BUILD_DATE = "2026-04-03" 
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
@@ -381,12 +381,11 @@ def main():
             if not trades_df.empty:
                 # 콤마 및 포맷팅 처리
                 styled_trades = trades_df.copy()
-                # DataFrame display
+                # DataFrame display (built-in download provided by this table will now include new columns)
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
-                # [V3.4.0.3 FINAL STABLE] 표준 st.download_button 방식으로 회항
-                # 브라우저 보안 정책에 따라 Base64 링크가 차단될 수 있으므로, 
-                # 가장 검증된 표준 컴포넌트를 사용하여 다운로드 안정성을 확보합니다.
+                # [V3.4.0.4 FINAL] 가장 표준적인 Streamlit 다운로드 버튼 방식 사용
+                # 복잡한 HTML/Base64 방식을 폐기하고, 공식 가이드라인에 따른 최적화된 버튼을 배치합니다.
                 csv_data = trades_df.to_csv(index=False, encoding='utf-8-sig')
                 
                 st.download_button(
@@ -394,7 +393,7 @@ def main():
                     data=csv_data,
                     file_name="kodex_irp_trade_logs.csv",
                     mime="text/csv",
-                    key="standard_dl_v3403"
+                    key=f"dl_v3404_{int(time.time())}"
                 )
             else:
                 st.info("기간 내에 발생한 매매 내역이 없습니다.")
