@@ -15,7 +15,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.4.0 Engine Identity]
-APP_VERSION = "V3.4.0.2" 
+APP_VERSION = "V3.4.0.3" 
 APP_BUILD_DATE = "2026-04-03" 
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
@@ -384,31 +384,18 @@ def main():
                 # DataFrame display
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
-                # [V3.4.0.2 FINAL STABLE] MIME 및 HTML 속성 재교정
-                csv_str = trades_df.to_csv(index=False, encoding='utf-8-sig')
-                b64_csv = base64.b64encode(csv_str.encode('utf-8-sig')).decode()
+                # [V3.4.0.3 FINAL STABLE] 표준 st.download_button 방식으로 회항
+                # 브라우저 보안 정책에 따라 Base64 링크가 차단될 수 있으므로, 
+                # 가장 검증된 표준 컴포넌트를 사용하여 다운로드 안정성을 확보합니다.
+                csv_data = trades_df.to_csv(index=False, encoding='utf-8-sig')
                 
-                # 버튼 스타일을 입힌 HTML 링크 생성 (Deep Blue #1f77b4 로 색상 교체하여 반영 여부 시각화)
-                download_href = f'''
-                    <a href="data:text/csv;base64,{b64_csv}" download="kodex_irp_trade_logs.csv" 
-                       style="text-decoration:none;">
-                        <div style="
-                            padding: 10px 20px;
-                            background-color: #1f77b4;
-                            color: white;
-                            border-radius: 8px;
-                            text-align: center;
-                            font-weight: bold;
-                            border: none;
-                            cursor: pointer;
-                            display: inline-block;
-                            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-                        ">
-                            📥 전체 매매 일지 엑셀(CSV) 다운로드 (V3.4.0.2 Stable)
-                        </div>
-                    </a>
-                '''
-                st.markdown(download_href, unsafe_allow_html=True)
+                st.download_button(
+                    label="📥 전체 매매 일지 엑셀(CSV) 다운로드",
+                    data=csv_data,
+                    file_name="kodex_irp_trade_logs.csv",
+                    mime="text/csv",
+                    key="standard_dl_v3403"
+                )
             else:
                 st.info("기간 내에 발생한 매매 내역이 없습니다.")
 
