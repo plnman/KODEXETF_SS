@@ -402,9 +402,13 @@ def main():
                 st.dataframe(hist_df[['cumulative_return','cagr','mdd','version']].sort_index(ascending=False).head(30),
                              use_container_width=True)
             else:
-                st.info("아직 기록된 데이터가 없습니다. 오후 4시 이후 자동 적재됩니다.")
+                st.info("🕐 아직 기록된 데이터가 없습니다. 오늘 오후 4시 이후 자동 적재됩니다.")
         except Exception as e:
-            st.error(f"수익률 이력 조회 실패: {e}")
+            err_str = str(e)
+            if 'PGRST205' in err_str or 'backtest_history' in err_str:
+                st.warning("🛠️ DB 테이블이 아직 생성되지 않았습니다. Supabase에서 `backtest_history` 테이블을 생성하면 자동 적재됩니다.")
+            else:
+                st.error(f"수익률 이력 조회 실패: {e}")
 
         st.divider()
 
@@ -415,15 +419,18 @@ def main():
             if sig_res.data:
                 sig_df = pd.DataFrame(sig_res.data)
                 sig_df = sig_df[['signal_date','ticker','close','target_break_price','composite_rs','buy_signal','exit_signal','mfi']]
-                # BUY 시그널 발생 종목만 필터 옵션
                 show_buy_only = st.checkbox("BUY 시그널 발생 종목만 보기", value=False)
                 if show_buy_only:
                     sig_df = sig_df[sig_df['buy_signal'] == True]
                 st.dataframe(sig_df, use_container_width=True, hide_index=True)
             else:
-                st.info("아직 기록된 시그널이 없습니다. 오후 4시 이후 자동 적재됩니다.")
+                st.info("🕐 아직 기록된 시그널이 없습니다. 오늘 오후 4시 이후 자동 적재됩니다.")
         except Exception as e:
-            st.error(f"시그널 이력 조회 실패: {e}")
+            err_str = str(e)
+            if 'PGRST205' in err_str or 'daily_signals' in err_str:
+                st.warning("🛠️ DB 테이블이 아직 생성되지 않았습니다. Supabase에서 `daily_signals` 테이블을 생성하면 자동 적재됩니다.")
+            else:
+                st.error(f"시그널 이력 조회 실패: {e}")
 
 if __name__ == "__main__":
     main()
