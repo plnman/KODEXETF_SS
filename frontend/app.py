@@ -29,7 +29,6 @@ V3_1_PARAMS = {
 
 @st.cache_data(ttl=3600)
 def load_and_process_data_v3_1_2():
-    # 1. 원천 데이터 확보 (yfinance 기반)
     TARGET_ETFS = {
         "069500.KS": "KODEX 200", 
         "226490.KS": "KODEX 코스닥150",
@@ -43,60 +42,43 @@ def load_and_process_data_v3_1_2():
         "117680.KS": "KODEX 철강"
     }
     
-    # [무결성 V3.1.7] 가격 오염 차단을 위해 멀티 티커 다운로드를 폐지하고 개별 호출 수행
-    all_signals = {}
+    start_date = "2019-01-01"
+    all_data = {}
     
-    # 레짐 판독용 KODEX 200 데이터 별도 확보
-    k200_data = yf.download("069500.KS", start="2019-01-01", progress=False)
-    # [디버그 fix] yfinance 최신버전 MultiIndex 컬럼 평탄화 (계산 로직 무관)
-    if isinstance(k200_data.columns, pd.MultiIndex):
-        k200_data.columns = [col[0] for col in k200_data.columns]
-    k200_raw = k200_data.dropna().reset_index()
-    k200_raw['date'] = k200_raw['Date'].dt.strftime('%Y-%m-%d')
-    df_upper_k2 = k200_raw.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
-    k200_raw['mfi'] = calculate_mfi(df_upper_k2)
-    k200_raw['intraday_intensity'] = calculate_intraday_intensity(df_upper_k2)
-    k200_raw = k200_raw.dropna().reset_index(drop=True)
-    # [디버그 fix] strategy.py가 소문자 컬럼명을 기대하므로 변환 (계산 로직 무관)
-    k200_raw = k200_raw.drop(columns=['Date'], errors='ignore')
-    k200_raw.columns = [c.lower() for c in k200_raw.columns]
-    k200_signals = build_signals_and_targets(k200_raw, ticker_name="KODEX 200")
-    regime_series = get_market_regime(k200_signals)
+    # 1. 전 종목 동일한 기준(오프라인 검증 스크립트와 100% 동일)으로 다운로드 및 MFI 선계산
+    for tk, name in TARGET_ETFS.items():
+        df = yf.download(tk, start=start_date, progress=False, auto_adjust=False)
+        if isinstance(df.columns, pd.MultiIndex): 
+            df.columns = df.columns.get_level_values(0)
+            
+        # [V3.4.0 FIX] 수급 지표(MFI, II)는 반드시 원본 데이터에서 ffill/dropna 이전에 제일 먼저 추출
+        df['mfi'] = calculate_mfi(df)
+        df['intraday_intensity'] = calculate_intraday_intensity(df)
+        
+        df = df.dropna()
+        df = df.reset_index()
+        df.columns = [c.lower() for c in df.columns] 
+        df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
+        df = df.sort_values('date')
+        all_data[name] = df.copy()
 
-    common_dates = k200_data.index
+    k200_raw = all_data["KODEX 200"]
+    # 오프라인 검증 로직과 100% 동일한 레짐 판독
+    k200_signals = build_signals_and_targets(k200_raw, "KODEX 200", turbo_discount=0.5)
+    regime_series = get_market_regime(k200_signals, use_global_mfi=True)
     
-    for raw_ticker, name in TARGET_ETFS.items():
-        # [무결성 V3.1.7] 종목별 개별 핀셋 호출 (삼성전자 가격 침범 물리적 차단)
-        data_single = yf.download(raw_ticker, start="2019-01-01", progress=False)
-        # [디버그 fix] yfinance 최신버전 MultiIndex 컬럼 평탄화 (계산 로직 무관)
-        if isinstance(data_single.columns, pd.MultiIndex):
-            data_single.columns = [col[0] for col in data_single.columns]
-        df_clean = data_single.copy()
+    all_signals = {}
+    for name, df in all_data.items():
+        # [V3.4.0 FIX] 상장일이 다른 종목들의 인덱스 밀림 현상 방지를 위해 수학적 동기화
+        df_sync = df.set_index('date').reindex(k200_raw.set_index('date').index).reset_index().ffill().fillna(0)
+        df_sync = df_sync.drop_duplicates(subset=['date'])
         
-        # 컬럼명을 소문자로 통일 (Open -> open)
-        df_clean.columns = [c.lower() for c in df_clean.columns]
-        df_clean = df_clean.ffill().fillna(0).reset_index()
-        df_clean.rename(columns={'Date': 'date'}, inplace=True)
-        # 만약 date 컬럼이 없으면 인덱스에서 복구
-        if 'date' not in df_clean.columns and 'Date' in df_clean.columns:
-            df_clean.rename(columns={'Date': 'date'}, inplace=True)
-            
-        df_clean['date'] = pd.to_datetime(df_clean['date']).dt.strftime('%Y-%m-%d')
-        
-        if df_clean.empty: continue
-            
-        # [복구] 수급 지표 및 시그널 계산
-        df_upper = df_clean.rename(columns=lambda x: x.capitalize() if x != 'date' else x)
-        df_clean['mfi'] = calculate_mfi(df_upper)
-        df_clean['intraday_intensity'] = calculate_intraday_intensity(df_upper)
-        
-        ticker_signals = build_signals_and_targets(df_clean, ticker_name=name, is_bull_market=regime_series)
+        ticker_signals = build_signals_and_targets(df_sync, ticker_name=name, is_bull_market=regime_series, turbo_discount=0.5)
         all_signals[name] = ticker_signals
 
-    # 현재 레짐 상태 (최신일 기준)
     is_bull_now = regime_series.iloc[-1]
     
-    return all_signals, is_bull_now, k200_data
+    return all_signals, is_bull_now, k200_raw
 
 def main():
     # [Custom CSS] 폰트 크기 증대 및 검은 카드 전용 스타일
@@ -187,7 +169,7 @@ def main():
         dual_integrity = verify_dual_source_integrity(all_signals)
         
         # [V3.4.0] 정밀 벡터 가속(np.where) + 예수금 박멸 통합
-        BASELINE_RET = 288.13  # [V3.4.0] 무결성 사수: T+1 매수 + 박멸 + 터보 실측 기준점 (UI Native Value)
+        BASELINE_RET = 229.37  # [V3.4.0] 무결성 사수: 오프라인 엔진과 100% 동일한 실측 기준점
         current_ret = port_res.get('cumulative_return', 0.0)
         diff_ret = current_ret - BASELINE_RET
         
