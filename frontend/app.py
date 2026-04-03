@@ -379,13 +379,14 @@ def main():
                 # DataFrame display
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
-                # CSV 다운로드 버튼
+                # CSV 다운로드 버튼 (V3.4.0 Final: 안정성을 위해 정적 파일명 및 고정 Key 할당)
                 csv_data = convert_df_to_csv(trades_df)
                 st.download_button(
                     label="📥 전체 매매 일지 엑셀(CSV) 다운로드",
                     data=csv_data,
-                    file_name=f'irp_trade_logs_{datetime.now().strftime("%Y%m%d")}.csv',
-                    mime='text/csv',
+                    file_name="kodex_irp_trade_logs.csv",
+                    mime="application/octet-stream",
+                    key="download_trade_logs_v340"
                 )
             else:
                 st.info("기간 내에 발생한 매매 내역이 없습니다.")
