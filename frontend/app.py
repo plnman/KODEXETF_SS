@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 import time
+import base64
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from engine.strategy import build_signals_and_targets, get_market_regime, TICKER_PARAMS
@@ -379,15 +380,33 @@ def main():
                 # DataFrame display
                 st.dataframe(styled_trades, use_container_width=True, hide_index=True)
                 
-                # CSV 다운로드 버튼 (V3.4.0 Final: 안정성을 위해 정적 파일명 및 고정 Key 할당)
-                csv_data = convert_df_to_csv(trades_df)
-                st.download_button(
-                    label="📥 전체 매매 일지 엑셀(CSV) 다운로드",
-                    data=csv_data,
-                    file_name="kodex_irp_trade_logs.csv",
-                    mime="application/octet-stream",
-                    key="download_trade_logs_v340"
-                )
+                # [V3.4.0 Final] 100% 무결성 다운로드 (Base64 방식)
+                # st.download_button 대신 브라우저 사이드에서 즉시 다운로드되는 Base64 링크를 제공하여
+                # Streamlit Cloud의 미디어 링크 만료 오류(UUID 파일명)를 원천 차단합니다.
+                csv_str = trades_df.to_csv(index=False, encoding='utf-8-sig')
+                b64_csv = base64.b64encode(csv_str.encode('utf-8-sig')).decode()
+                
+                # 버튼 스타일을 입힌 HTML 링크 생성
+                download_href = f'''
+                    <a href="data:file/csv;base64,{b64_csv}" download="kodex_irp_trade_logs.csv" 
+                       style="text-decoration:none;">
+                        <div style="
+                            padding: 10px 20px;
+                            background-color: #ff4b4b;
+                            color: white;
+                            border-radius: 8px;
+                            text-align: center;
+                            font-weight: bold;
+                            border: none;
+                            cursor: pointer;
+                            display: inline-block;
+                            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+                        ">
+                            📥 전체 매매 일지 엑셀(CSV) 다운로드 (Excel 호환)
+                        </div>
+                    </a>
+                '''
+                st.markdown(download_href, unsafe_allow_html=True)
             else:
                 st.info("기간 내에 발생한 매매 내역이 없습니다.")
 
