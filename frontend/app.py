@@ -102,10 +102,15 @@ def main():
     # [Custom CSS] 폰트 크기 30% 증대 및 고대비 색상 강제 적용
     st.markdown("""
         <style>
-            /* 일반 텍스트 및 캡션 크기 증대 */
-            .stMarkdown p, .stCaption, div[data-testid="stCaptionContainer"] {
-                font-size: 1.15rem !important; /* 약 30% 증대 (기존 0.8~0.9rem) */
+            /* 모든 텍스트, p, span, caption 크기 및 고대비 백색 강제 */
+            .stMarkdown p, .stCaption, div[data-testid="stCaptionContainer"], span, div {
+                font-size: 1.15rem !important; 
                 color: #FFFFFF !important;    /* 희미한 색 제거, 순백색 강제 */
+            }
+            /* h1, h2, h3 등 제목 계열은 더 크고 선명하게 */
+            h1, h2, h3 {
+                color: #FFFFFF !important;
+                font-weight: 800 !important;
             }
             /* 테이블 내부 텍스트 크기 및 대비 */
             .stTable td, .stTable th, [data-testid="stTable"] {
@@ -119,7 +124,7 @@ def main():
             }
             .main .block-container {
                 max-width: 95% !important;
-                padding-top: 2rem !important;
+                padding-top: 1.5rem !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -319,12 +324,12 @@ def main():
                         <p style="margin:10px 0; color:{color_hex}; font-weight:bold; font-size:1.5rem;">{sig_status}</p>
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="display:flex; justify-content:space-between; font-size:1.2rem;">
-                            <span>🎯 돌파 목표가</span>
+                            <span style="color:#FFFFFF; font-weight:bold;">🎯 돌파 목표가</span>
                             <span style="font-weight:bold; color:#ffdd44;">{target_p:,.0f}원</span>
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:5px;">
-                            <span>📉 현재가</span>
-                            <span style="color:#fff;">{curr_p:,.0f}원</span>
+                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:6px;">
+                            <span style="color:#FFFFFF; font-weight:bold;">📉 현재가</span>
+                            <span style="color:#FFFFFF; font-weight:bold;">{curr_p:,.0f}원</span>
                         </div>
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="font-size:1.1rem; color:#fff; line-height:1.6;">
