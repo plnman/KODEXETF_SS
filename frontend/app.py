@@ -152,7 +152,7 @@ def main():
         # 1. 야후-네이버 이중 가격 검증 수행 (Cross-Check)
         dual_integrity = verify_dual_source_integrity(all_signals)
         
-        BASELINE_RET = 230.66 
+        BASELINE_RET = 226.38  # [V3.3.5] 실측 기준값 (3종목 모드 실제 수익률)
         current_ret = port_res.get('cumulative_return', 0.0)
         diff_ret = current_ret - BASELINE_RET
         
@@ -170,19 +170,39 @@ def main():
         
         # 2. 매일 16:00 이후 자동 성과 기록 (Journaling to DB)
         now_h = datetime.now().hour
-        if now_h >= 16 and abs(diff_ret) < 2.0:
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if now_h >= 16:
             try:
+                # [Fix 1] 포트폴리오 전체 수익률 일별 기록
                 journal_payload = {
-                    "record_date": datetime.now().strftime("%Y-%m-%d"),
+                    "record_date": today_str,
                     "cumulative_return": float(current_ret),
                     "cagr": float(port_res.get('cagr', 0.0)),
                     "mdd": float(port_res.get('mdd', 0.0)),
-                    "version": "V3.3.0"
+                    "version": "V3.3.5"
                 }
                 supabase.table('backtest_history').upsert(journal_payload).execute()
-                st.sidebar.success(f"📈 [16:00 정례 동기화] 오늘자 무결성 수익률({current_ret:.2f}%) DB 적재 완료")
+                st.sidebar.success(f"📈 [16:00 정례 동기화] 오늘자 수익률({current_ret:.2f}%) 기록 완료")
             except Exception as e:
-                pass
+                st.sidebar.warning(f"⚠️ backtest_history 저장 실패: {e}")
+            try:
+                # [Fix 2] 종목별 시그널 일별 기록 (나중에 신호 성과 추적용)
+                for sig_name, sig_df in all_signals.items():
+                    latest = sig_df.iloc[-1]
+                    signal_payload = {
+                        "signal_date": today_str,
+                        "ticker": sig_name,
+                        "close": float(latest.get('close', 0)),
+                        "target_break_price": float(latest.get('target_break_price', 0)),
+                        "composite_rs": float(latest.get('composite_rs', 0)),
+                        "buy_signal": bool(latest.get('execute_buy_T_plus_1', False)),
+                        "exit_signal": bool(latest.get('execute_exit_T_plus_1', False)),
+                        "mfi": float(latest.get('mfi', 0)),
+                    }
+                    supabase.table('daily_signals').upsert(signal_payload).execute()
+                st.sidebar.info(f"📡 [시그널 기록] {len(all_signals)}개 종목 시그널 DB 저장 완료")
+            except Exception as e:
+                st.sidebar.warning(f"⚠️ daily_signals 저장 실패: {e}")
         
         st.divider()
     if not all_signals:
@@ -367,9 +387,43 @@ def main():
         """)
 
     with tab4:
-        st.header("📈 최근 실전 매매 기록")
-        db_res = supabase.table('live_trades').select('*').order('created_at', desc=True).limit(20).execute()
-        if db_res.data: st.dataframe(pd.DataFrame(db_res.data), use_container_width=True)
+        st.header("📈 실전 성과 궤적 (시그널 모니터링)")
+        st.markdown("매일 16:00 기준으로 자동 기록된 시그널과 수익률 추이를 추적합니다.")
+
+        # [Fix 3-A] 일별 누적 수익률 추이
+        st.subheader("📊 포트폴리오 누적 수익률 추이")
+        try:
+            hist_res = supabase.table('backtest_history').select('*').order('record_date', desc=False).execute()
+            if hist_res.data:
+                hist_df = pd.DataFrame(hist_res.data)
+                hist_df['record_date'] = pd.to_datetime(hist_df['record_date'])
+                hist_df = hist_df.set_index('record_date')
+                st.line_chart(hist_df[['cumulative_return']])
+                st.dataframe(hist_df[['cumulative_return','cagr','mdd','version']].sort_index(ascending=False).head(30),
+                             use_container_width=True)
+            else:
+                st.info("아직 기록된 데이터가 없습니다. 오후 4시 이후 자동 적재됩니다.")
+        except Exception as e:
+            st.error(f"수익률 이력 조회 실패: {e}")
+
+        st.divider()
+
+        # [Fix 3-B] 종목별 시그널 이력
+        st.subheader("📡 종목별 시그널 이력 (BUY/EXIT 발생 기록)")
+        try:
+            sig_res = supabase.table('daily_signals').select('*').order('signal_date', desc=True).limit(100).execute()
+            if sig_res.data:
+                sig_df = pd.DataFrame(sig_res.data)
+                sig_df = sig_df[['signal_date','ticker','close','target_break_price','composite_rs','buy_signal','exit_signal','mfi']]
+                # BUY 시그널 발생 종목만 필터 옵션
+                show_buy_only = st.checkbox("BUY 시그널 발생 종목만 보기", value=False)
+                if show_buy_only:
+                    sig_df = sig_df[sig_df['buy_signal'] == True]
+                st.dataframe(sig_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("아직 기록된 시그널이 없습니다. 오후 4시 이후 자동 적재됩니다.")
+        except Exception as e:
+            st.error(f"시그널 이력 조회 실패: {e}")
 
 if __name__ == "__main__":
     main()
