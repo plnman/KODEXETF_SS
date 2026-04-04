@@ -212,7 +212,7 @@ def main():
             10: 115.82  # 10종목 안정 모드 (🏦)
         }
         
-        actual_ret = port_res.get('ROI(%)', 0.0)
+        actual_ret = port_res.get('cumulative_return', 0.0)
         target_baseline = BASELINE_RET_MAP.get(max_tickers, 240.44)
         diff_ret = actual_ret - target_baseline
         
@@ -233,7 +233,7 @@ def main():
             try:
                 journal_payload = {
                     "record_date": today_str,
-                    "cumulative_return": float(current_ret),
+                    "cumulative_return": float(actual_ret),
                     "cagr": float(port_res.get('cagr', 0.0)),
                     "mdd": float(port_res.get('mdd', 0.0)),
                     "version": "V3.5.0"
@@ -495,6 +495,15 @@ def main():
         for name, df in all_signals.items():
             curr = df.iloc[-1]
             prev_20 = df.iloc[-21] if len(df) >= 21 else df.iloc[0]
+            
+            # [V3.5.2 Intelligent Exit Engine]
+            # 1. 초강력 불장(is_bull_market) 시에는 5일선 이격 매도로 익절을 극대화
+            # 2. 일반 장세에서는 변동성(ATR)에 따라 10~20일선 자동 추적
+            df['exit_signal_T'] = np.where(
+                is_bull_v, 
+                df['close'] < df['sma_5'], # 지능형 가속 익절 (V3.5.2)
+                np.where(df['vol_rank'] < 0.3, df['close'] < df['sma_10'], df['close'] < df['sma_20'])
+            )
             
             # 추세 가점 수동 복기용 계산 (불리언 버그 방지를 위해 정수 변환)
             ma20_ok = curr['close'] > curr['sma_20']

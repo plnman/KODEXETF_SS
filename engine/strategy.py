@@ -171,10 +171,12 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     df['rel_vol'] = df['atr_14'] / df['close']
     df['vol_rank'] = df['rel_vol'].rolling(window=252).rank(pct=True) # 자기 변동성 대비 현재 수준 (0.0~1.0)
     
-    # 변동성이 낮은(안정적) 종목은 익절을 당기고, 변동성이 큰 종목은 휩쏘 방지를 위해 늦게 팜
+    # [V3.5.2 Intelligent Exit Engine]
+    # 1. 초강력 불장(is_bull_market) 시에는 5일선 이격 매도로 익절을 극대화
+    # 2. 일반 장세에서는 변동성(ATR)에 따라 10~20일선 자동 추전
     df['exit_signal_T'] = np.where(
         is_bull_v, 
-        df['close'] < df['sma_10'],
+        df['close'] < df['sma_5'], 
         np.where(df['vol_rank'] < 0.3, df['close'] < df['sma_10'], df['close'] < df['sma_20'])
     )
     
