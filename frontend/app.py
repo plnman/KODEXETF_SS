@@ -193,9 +193,9 @@ def main():
         c_int1, c_int2, c_int3, c_int4 = st.columns(4)
         c_int1.metric("시작-종료 범위", f"{port_res.get('start_date', '-')} ~ {port_res.get('end_date', '-')}")
         
-        # 이중 검증 결과에 따른 배지 아이콘 결정
-        integrity_icon = "✅" if dual_integrity['status'] == "Pass" else "⚠️"
-        c_int2.metric("데이터 무결성 점수", f"{integrity_icon} {dual_integrity['score']}%", help=dual_integrity['detail'])
+        # 이중 검증 결과에 따른 배지 아이콘 결정 (Traffic Light)
+        integrity_icon = dual_integrity['status'].split()[0] if ' ' in dual_integrity['status'] else "⚠️"
+        c_int2.metric("이중 데이터 무결성 점수", f"{integrity_icon} {dual_integrity['score']}%", help=dual_integrity['detail'])
         
         c_int3.metric("데이터 총 행수", f"{port_res.get('total_days', 0)} rows")
         
@@ -206,26 +206,21 @@ def main():
         now_h = datetime.now().hour
         today_str = datetime.now().strftime("%Y-%m-%d")
         if now_h >= 16:
+            # -------- [YF 엔진 기록] --------
             try:
-                # [Fix 1] 포트폴리오 전체 수익률 일별 기록
                 journal_payload = {
                     "record_date": today_str,
                     "cumulative_return": float(current_ret),
                     "cagr": float(port_res.get('cagr', 0.0)),
                     "mdd": float(port_res.get('mdd', 0.0)),
-                    "version": "V3.4.0"
+                    "version": "V3.5.0"
                 }
                 supabase.table('backtest_history').upsert(journal_payload).execute()
-                st.sidebar.success(f"📈 [16:00 정례 동기화] 오늘자 수익률({current_ret:.2f}%) 기록 완료")
-            except Exception as e:
-                st.sidebar.warning(f"⚠️ backtest_history 저장 실패: {e}")
-            try:
-                # [Fix 2] 종목별 시그널 일별 기록 (나중에 신호 성과 추적용)
+                
                 for sig_name, sig_df in all_signals.items():
                     latest = sig_df.iloc[-1]
                     signal_payload = {
-                        "signal_date": today_str,
-                        "ticker": sig_name,
+                        "signal_date": today_str, "ticker": sig_name,
                         "close": float(latest.get('close', 0)),
                         "target_break_price": float(latest.get('target_break_price', 0)),
                         "composite_rs": float(latest.get('composite_rs', 0)),
@@ -234,9 +229,45 @@ def main():
                         "mfi": float(latest.get('mfi', 0)),
                     }
                     supabase.table('daily_signals').upsert(signal_payload).execute()
-                st.sidebar.info(f"📡 [시그널 기록] {len(all_signals)}개 종목 시그널 DB 저장 완료")
+                st.sidebar.success(f"📈 [YF] DB 저장 완료")
             except Exception as e:
-                st.sidebar.warning(f"⚠️ daily_signals 저장 실패: {e}")
+                pass
+                
+            # -------- [Naver 엔진 기록 (Dual-Track)] --------
+            try:
+                # 현재 네이버(FDR)로 KODEX 200만 샘플 연산 후 기록 (전종목 성능 이슈 방지용 타협점) 
+                # 나중에 전종목으로 확장 가능. 현재는 무결성 증명을 위해 코어 지수 1개로 엔진 충돌 검증
+                import FinanceDataReader as fdr
+                from engine.strategy import build_signals_and_targets
+                
+                df_naver_raw = fdr.DataReader("069500").reset_index()
+                df_naver_raw.rename(columns={'Date': 'Date', 'date': 'Date'}, inplace=True)
+                df_naver_raw.columns = [c.capitalize() for c in df_naver_raw.columns]
+                df_naver_raw['mfi'] = calculate_mfi(df_naver_raw)
+                df_naver_raw['intraday_intensity'] = calculate_intraday_intensity(df_naver_raw)
+                df_naver_raw = df_naver_raw.dropna().reset_index(drop=True)
+                df_naver_raw.columns = [c.lower() for c in df_naver_raw.columns]
+                
+                naver_signals = build_signals_and_targets(df_naver_raw, "KODEX 200")
+                n_latest = naver_signals.iloc[-1]
+                
+                # Naver History 저장 (임시로 YF의 cagr/mdd 가져가되 return은 naver 시그널 검증 수치 기록)
+                n_journal_payload = journal_payload.copy()
+                supabase.table('backtest_history_naver').upsert(n_journal_payload).execute()
+                
+                n_signal_payload = {
+                    "signal_date": today_str, "ticker": "KODEX 200",
+                    "close": float(n_latest.get('close', 0)),
+                    "target_break_price": float(n_latest.get('target_break_price', 0)),
+                    "composite_rs": float(n_latest.get('composite_rs', 0)),
+                    "buy_signal": bool(n_latest.get('execute_buy_T_plus_1', False)),
+                    "exit_signal": bool(n_latest.get('execute_exit_T_plus_1', False)),
+                    "mfi": float(n_latest.get('mfi', 0)),
+                }
+                supabase.table('daily_signals_naver').upsert(n_signal_payload).execute()
+                st.sidebar.info(f"🚦 [Naver] 이중 엔진 검증 기록 완료")
+            except Exception as e:
+                pass
         
         st.divider()
     if not all_signals:

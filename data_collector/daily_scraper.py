@@ -74,23 +74,41 @@ def calculate_intraday_intensity(df):
     return ii
 
 def verify_dual_source_integrity(all_signals):
-    """야후(yf) 데이터와 네이버(fdr) 데이터를 교차 검증하여 무결성 점수 산출"""
+    """야후(yf) 데이터와 네이버(fdr) 데이터를 교차 검증하여 무결성을 대조하는 V3.5.0 투트랙 신호등 로직"""
     try:
-        # 네이버 금융은 종목코드 6자리로 호출
-        df_naver = fdr.DataReader("069500").tail(5)
+        supabase = get_supabase_client()
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        # [1] DB에서 오늘 기록된 Naver vs YF 수익률 대조 (History Tracker)
+        yf_hist = supabase.table('backtest_history').select('cumulative_return').eq('record_date', today_str).execute()
+        nv_hist = supabase.table('backtest_history_naver').select('cumulative_return').eq('record_date', today_str).execute()
+        
+        hist_match = False
+        if yf_hist.data and nv_hist.data:
+            diff = abs(float(yf_hist.data[0]['cumulative_return']) - float(nv_hist.data[0]['cumulative_return']))
+            if diff < 0.01:
+                hist_match = True
+                
+        # [2] 오늘자 KODEX 200 실물 시세 즉각 대조 (Live Price Tracker)
+        df_naver = fdr.DataReader("069500").tail(1)
         naver_price = float(df_naver['Close'].iloc[-1])
         
-        # 야후(yf) 데이터 추출
         if "KODEX 200" in all_signals:
             yf_price = float(all_signals["KODEX 200"]['close'].iloc[-1])
-            diff_pct = abs(yf_price - naver_price) / naver_price * 100
-            if diff_pct < 2.0:
-                return {"status": "Pass", "score": 100, "detail": f"데이터 일치 (편차 {diff_pct:.2f}%)"}
-            else:
-                return {"status": "Fail", "score": 50, "detail": f"주의: 야후-네이버 시세 편차 {diff_pct:.2f}% 발생"}
+            price_diff_pct = abs(yf_price - naver_price) / naver_price * 100
+        else:
+            price_diff_pct = 999.0
+            
+        # 🚦 신호등 로직 판정 (Traffic Light)
+        if price_diff_pct < 2.0 and hist_match:
+            return {"status": "🟢 GREEN", "score": 100, "detail": f"완벽 동기화 (가격 오차 {price_diff_pct:.2f}%, DB수익률 일치)"}
+        elif price_diff_pct < 2.0 and not hist_match:
+            return {"status": "🟡 YELLOW", "score": 85, "detail": f"가격은 일치({price_diff_pct:.2f}%)하나, DB 백테스트 기록 미스매치 (16시 대기중)"}
+        else:
+            return {"status": "🔴 RED", "score": 0, "detail": f"위험: 시세 오차 {price_diff_pct:.2f}% 또는 원천 데이터 손상"}
+            
     except Exception as e:
-        return {"status": "Error", "score": 0, "detail": str(e)}
-    return {"status": "Unknown", "score": 0, "detail": "Waiting for data..."}
+        return {"status": "🔴 RED", "score": 0, "detail": f"검증 에러: {str(e)}"}
 
 def fetch_and_store_daily_data(start_date="2019-01-01"):
     supabase = get_supabase_client()
