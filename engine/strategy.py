@@ -15,6 +15,19 @@ TICKER_PARAMS = {
     "KODEX 금융": {'k': 0.5, 'mfi': 60, 'adx_threshold': 20},
     "KODEX 기계장비": {'k': 0.7, 'mfi': 65, 'adx_threshold': 15},
     "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
+    # [NEW] 글로벌 / 메가트렌드 편입 (V3.5.0)
+    "KODEX 미국S&P500TR": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
+    "KODEX 미국나스닥100TR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
+    "KODEX 미국FANG플러스(H)": {'k': 0.4, 'mfi': 60, 'adx_threshold': 20},
+    "KODEX 미국산업재(합성)": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
+    "KODEX 선진국MSCI World": {'k': 0.6, 'mfi': 40, 'adx_threshold': 15},
+    "KODEX 글로벌AI인프라": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
+    "KODEX 인도Nifty50": {'k': 0.6, 'mfi': 50, 'adx_threshold': 15},
+    "KODEX 미국반도체MV": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
+    "KODEX 미국배당프리미엄액티브": {'k': 0.8, 'mfi': 40, 'adx_threshold': 15},
+    "KODEX K방산TOP10": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
+    "KODEX 바이오": {'k': 0.2, 'mfi': 60, 'adx_threshold': 15},
+    "KODEX Top5PlusTR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
 }
 
 # 공통 하드 스탑 방벽 (과도한 5일선 칼손절 방지를 위해 3.0 유지)

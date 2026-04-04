@@ -56,7 +56,20 @@ def load_and_process_data_v3_1_2():
         "117700.KS": "KODEX 건설",
         "091220.KS": "KODEX 금융",
         "102970.KS": "KODEX 기계장비",
-        "117680.KS": "KODEX 철강"
+        "117680.KS": "KODEX 철강",
+        # [NEW] 글로벌 / 메가트렌드 (V3.5.0)
+        "379800.KS": "KODEX 미국S&P500TR",
+        "367380.KS": "KODEX 미국나스닥100TR",
+        "314250.KS": "KODEX 미국FANG플러스(H)",
+        "315270.KS": "KODEX 미국산업재(합성)",
+        "251350.KS": "KODEX 선진국MSCI World",
+        "475380.KS": "KODEX 글로벌AI인프라",
+        "453850.KS": "KODEX 인도Nifty50",
+        "465610.KS": "KODEX 미국반도체MV",
+        "461580.KS": "KODEX 미국배당프리미엄액티브",
+        "480600.KS": "KODEX K방산TOP10",
+        "244580.KS": "KODEX 바이오",
+        "315930.KS": "KODEX Top5PlusTR"
     }
     
     start_date = "2019-01-01"
