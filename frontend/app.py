@@ -203,7 +203,7 @@ def main():
         
         # [V3.5.2] 하이브리드 무결성 모니터링
         port_res = cached_run_backtest(all_signals, 50000000.0, max_tickers, True, version=APP_VERSION)
-        dual_integrity = verify_dual_source_integrity(all_signals, is_backtest=True)
+        dual_integrity = verify_dual_source_integrity(all_signals)
         
         # [V3.5.2] 22종목 유니버스 하이브리드 고정 기반 실측 기준 ROI (3종목: 240.44%)
         BASELINE_RET_MAP = {
