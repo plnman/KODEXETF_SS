@@ -77,6 +77,10 @@ def load_and_process_data_v3_5_2_FINAL(is_backtest=False):
     if 'date' not in k200_raw.columns: k200_raw = k200_raw.reset_index().rename(columns={'Date': 'date', 'index': 'date'})
     k200_raw['date'] = pd.to_datetime(k200_raw['date']).dt.strftime('%Y-%m-%d')
     k200_raw = k200_raw.sort_values('date')
+    
+    # [V3.5.2 FIX] K200 지표 계산 누락 복구 (KeyError: 'mfi' 방지)
+    k200_raw['mfi'] = calculate_mfi(k200_raw)
+    k200_raw['intraday_intensity'] = calculate_intraday_intensity(k200_raw)
 
     # 전 종목 수집 루프 (YF -> FDR)
     for tk, name in TARGET_ETFS.items():
@@ -122,7 +126,7 @@ def load_and_process_data_v3_5_2_FINAL(is_backtest=False):
         all_signals[name] = ticker_signals
 
     is_bull_now = regime_series.iloc[-1]
-    return all_signals, is_bull_now, k200_raw
+    return all_signals, is_bull_now, k200_raw, sync_report
 
 def main():
     # [Custom CSS] 폰트 크기 증대 및 검은 카드 전용 스타일
