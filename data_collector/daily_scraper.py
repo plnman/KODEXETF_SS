@@ -7,6 +7,10 @@ from datetime import datetime
 from dotenv import load_dotenv
 from data_collector.supabase_client import get_supabase_client
 
+# !!! CRITICAL: NEVER TOUCH INDICATOR CALCULATION LOGIC BELOW !!!
+# !!! 지표 계산 로직(MFI, II) 절대 수정 금지 - 알고리즘 무결성 보호용 성역 !!!
+# -------------------------------------------------------------------------------------
+
 # KODEX 기반 IRP 거래 가능 핵심 10개 섹터 및 지수 ETF
 TARGET_ETFS = {
     "069500.KS": "KODEX 200", 

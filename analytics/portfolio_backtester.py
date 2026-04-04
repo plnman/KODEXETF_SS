@@ -1,5 +1,9 @@
 import pandas as pd
 
+# !!! CRITICAL: NEVER TOUCH BACKTEST CALCULATION LOGIC BELOW !!!
+# !!! 수익률 연산 산식 절대 수정 금지 - 데이터 소스 변경 효과 측정용 성역 !!!
+# -------------------------------------------------------------------------------------
+
 def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 10000000.0, max_tickers: int = 3, use_cash_sweep: bool = True) -> dict:
     daily_data = {}
     for ticker, df in all_signals_dict.items():
@@ -40,6 +44,11 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
                 if row['low'] <= hard_stop_price:
                     exit_price = hard_stop_price
                     exit_reason = "Hard Stop (방어선 붕괴)"
+                # [V3.4.0 Switching] 더 강한 추세의 종목이 나타나 순위권(Top 3)에서 밀려난 '애매한 종목' 청산
+                elif ticker not in current_target_tickers:
+                    exit_price = row['open']
+                    exit_reason = "주도주 순위 이탈 (Switching)"
+                    
                 # 전일 5일선 이탈로 뜬 T+1일 시가 청산
                 elif row['execute_exit_T_plus_1'] == True:
                     exit_price = row['open']
@@ -67,23 +76,13 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
         for ticker in tickers_to_remove:
             del positions[ticker]
             
-        # [2] 진입 처리
+        # [2] 진입 처리 - 예수금 100% 박멸 (Full Cash Sweep)
         for ticker in current_target_tickers:
             if ticker not in positions and ticker in today_rows:
                 row = today_rows[ticker]
                 if row['execute_buy_T_plus_1'] == True:
-                    current_portfolio_value = capital
-                    for holds_ticker, pos in positions.items():
-                        if holds_ticker in today_rows:
-                            current_portfolio_value += pos['qty'] * today_rows[holds_ticker]['open']
-                            
-                    # [V3.4.0] 안전한 예수금 박멸 (Dynamic Cash Sweep) or Base 1/N
-                    if use_cash_sweep:
-                        rem_slots = max_tickers - len(positions)
-                        target_invest_amount = (capital * 0.998) / rem_slots if rem_slots > 0 else 0
-                    else:
-                        weight_per_ticker = 1.0 / max_tickers
-                        target_invest_amount = current_portfolio_value * weight_per_ticker
+                    # [V3.4.0 박멸 로직] 남은 현금 100% 투입 (0.2% 버퍼 제외)
+                    target_invest_amount = capital * 0.998
                     
                     if capital >= target_invest_amount > 0:
                         qty = int(target_invest_amount // row['open'])
@@ -102,17 +101,15 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
                                 'buy_reason': buy_reason
                             }
 
-        # [3] 스크리닝 (주도주 필터링) - [가변 종목 수 지원]
-        if is_friday or t_idx == 0:
-            # [V3.1.2] 신규모드: composite_rs 우선 순위, 없을 경우 rs_20 사용
-            rs_scores = {}
-            for ticker, row in today_rows.items():
-                score_col = 'composite_rs' if 'composite_rs' in row else 'rs_20'
-                if score_col in row and not pd.isna(row[score_col]):
-                    rs_scores[ticker] = row[score_col]
-            sorted_tickers = sorted(rs_scores.items(), key=lambda x: x[1], reverse=True)
-            # 인자로 전달받은 max_tickers 수만큼 슬라이싱
-            current_target_tickers = [x[0] for x in sorted_tickers[:max_tickers]]
+        # [3] 스크리닝 (주도주 필터링) - [매일 스위칭 모드]
+        # [V3.4.0] 금요일 제한 없이 매일 갱신하여 강한 추세 발생 시 즉시 포착
+        rs_scores = {}
+        for ticker, row in today_rows.items():
+            score_col = 'composite_rs' if 'composite_rs' in row else 'rs_20'
+            if score_col in row and not pd.isna(row[score_col]):
+                rs_scores[ticker] = row[score_col]
+        sorted_tickers = sorted(rs_scores.items(), key=lambda x: x[1], reverse=True)
+        current_target_tickers = [x[0] for x in sorted_tickers[:max_tickers]]
             
         # [4] 잔고 평가 기록
         daily_value = capital
