@@ -15,7 +15,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.4.0 Engine Identity]
-APP_VERSION = "V3.4.0.4" 
+APP_VERSION = "V3.5.0" 
 APP_BUILD_DATE = "2026-04-03" 
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
