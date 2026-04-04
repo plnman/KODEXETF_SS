@@ -320,6 +320,9 @@ def main():
         
         top_indices = sorted(valid_signals, key=lambda x: x[1], reverse=True)[:max_tickers]
         
+        # [V3.5.1] 티커 역매핑 정보 생성
+        NAME_TO_TICKER = {v: k for k, v in TARGET_ETFS.items()}
+        
         # [NEW] 그리드 레이아웃 적용 (가공되지 않은 원칙 중심 노출)
         cols_per_row = 3
         for r_idx in range(0, len(top_indices), cols_per_row):
@@ -329,6 +332,7 @@ def main():
                 df_curr = all_signals[name].iloc[-1]
                 target_p = df_curr['target_break_price']
                 curr_p = df_curr['close']
+                ticker_symbol = NAME_TO_TICKER.get(name, "N/A")
                 
                 # 시그널 판독
                 if curr_p >= target_p:
@@ -368,11 +372,16 @@ def main():
                     
                     st.markdown(f"""
                     <div style="border:2px solid #666; border-radius:12px; padding:20px; margin-bottom:15px; background-color:#1e1e1e; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <h2 style="margin:0; color:#fff; font-size:1.6rem;">{name}</h2>
-                            <span style="font-size:1.1rem; color:#fff; font-weight:bold;">{rs_rank_txt}</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>
+                            <span style="color:#FFF; font-size:0.9rem; font-weight:bold;">{rs_rank_txt}</span>
                         </div>
-                        <p style="margin:10px 0; color:{color_hex}; font-weight:bold; font-size:1.5rem;">{sig_status}</p>
+                        <div style="font-size:1.6rem; font-weight:900; color:{color_hex}; margin-bottom:4px;">
+                            {name}
+                        </div>
+                        <div style="font-size:0.95rem; color:#888; font-weight:600; margin-bottom:10px;">
+                            Ticker: {ticker_symbol}
+                        </div>
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="display:flex; justify-content:space-between; font-size:1.2rem;">
                             <span style="color:#FFFFFF; font-weight:bold;">🎯 돌파 목표가</span>
