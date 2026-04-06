@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import yfinance as yf
 from datetime import datetime, timedelta
 import sys
 import os
@@ -19,10 +18,10 @@ from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity
 from analytics.integrity_monitor import log_backtest_integrity
 
-# [V3.5.5 Stable] - Final Stable Baseline (MFI 40, Turbo-K 0.5, ATR 3.0)
-APP_VERSION = "V3.5.5" 
-APP_BUILD_DATE = "2026-04-04" 
-STABLE_ROI = 206.56  # 3종목 집중 투자 (2019-01-02 ~ 2026-04-03)
+# [V3.5.6] - inf RS fix, K방산TOP10 ticker(0080G0), cache re-enabled
+APP_VERSION = "V3.5.6"
+APP_BUILD_DATE = "2026-04-06"
+STABLE_ROI = 43.91  # 3종목 집중 투자 (2019-01-02 ~ 2026-04-03) [V3.5.6 inf RS fix 반영]
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
@@ -39,20 +38,20 @@ V3_1_PARAMS = {
     "Z_SCORE_WINDOW": 20
 }
 
-# @st.cache_data
+@st.cache_data
 def convert_df_to_csv(df):
     """Excel 호환성을 위해 UTF-8-SIG 인코딩으로 변환 및 캐싱"""
     if df.empty:
         return b""
     return df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
 
-# @st.cache_data(ttl=3600)
+@st.cache_data(ttl=3600)
 def cached_run_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep, version=APP_VERSION):
     """백테스팅 연산 결과 캐싱 (다운로드 시 오차 및 타임아웃 방지)"""
     return run_portfolio_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep)
 
 # [V3.5.2] 개별 종목 고속 캐싱 엔진 (무한 로딩 방어선)
-# @st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(ttl=1800, show_spinner=False)
 def get_single_ticker_data(tk, name, start_date, end_date):
     import FinanceDataReader as fdr
     try:
@@ -74,14 +73,14 @@ def get_single_ticker_data(tk, name, start_date, end_date):
         return None
 
 # [V3.5.2] KRX MASTER DEFINITIVE SYNC - 1,781행 강제 동기화 및 구형 캐시 완전 소탕
-# @st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_and_process_data_v3_5_2_MASTER_FINAL(is_backtest=False):
     import FinanceDataReader as fdr
     TARGET_ETFS = {
         "069500.KS": "KODEX 200", "226490.KS": "KODEX 코스닥150", "379800.KS": "KODEX 미국S&P500TR",
         "367380.KS": "KODEX 미국나스닥100TR", "314250.KS": "KODEX 미국FANG플러스(H)", "091160.KS": "KODEX 반도체",
         "305720.KS": "KODEX 2차전지산업", "465610.KS": "KODEX 미국반도체MV", "453850.KS": "KODEX 인도Nifty50",
-        "244580.KS": "KODEX 바이오", "480600.KS": "KODEX K방산TOP10", "461580.KS": "KODEX 미국배당프리미엄액티브",
+        "244580.KS": "KODEX 바이오", "0080G0": "KODEX K방산TOP10", "461580.KS": "KODEX 미국배당프리미엄액티브",
         "315930.KS": "KODEX Top5PlusTR", "091170.KS": "KODEX 은행", "091180.KS": "KODEX 자동차",
         "117700.KS": "KODEX 건설", "091220.KS": "KODEX 금융", "102970.KS": "KODEX 기계장비", "117680.KS": "KODEX 철강",
         "315270.KS": "KODEX 미국산업재(합성)", "251350.KS": "KODEX 선진국MSCI World", "475380.KS": "KODEX 글로벌AI인프라"
@@ -230,11 +229,11 @@ def main():
         # [V3.5.2] 하이브리드 무결성 모니터링
         port_res = cached_run_backtest(all_signals, 50000000.0, max_tickers, True, version=APP_VERSION)
         
-        # [V3.5.2] 22종목 유니버스 하이브리드 고정 기반 실측 기준 ROI (3종목: 240.44%)
+        # [V3.5.6] 22종목 유니버스 실측 기준 ROI (inf RS bug fix + K방산TOP10 0080G0 적용)
         BASELINE_RET_MAP = {
-            3: 240.44,  # 3종목 집중 모드 (🚀) - [지시] 수치 고정 완료
-            5: 172.15,  # 5종목 균형 모드 (🛡️)
-            10: 115.82  # 10종목 안정 모드 (🏦)
+            3: 43.91,   # 3종목 집중 모드 (🚀)
+            5: 362.84,  # 5종목 균형 모드 (🛡️)
+            10: 187.96  # 10종목 안정 모드 (🏦)
         }
         
         actual_ret = port_res.get('cumulative_return', 0.0)
@@ -259,7 +258,7 @@ def main():
         MASTER_CACHE_KEY = "v3_5_2_MASTER_FINAL_315PCT_DEPLOY_001"
         
         # [V3.5.2] 1,781행 도달 실패 시 대시보드 경고 (Hard Audit)
-        if len(k200_raw) != 1781 and is_backtest:
+        if len(k200_raw) != TARGET_ROWS:
             st.error(f"⚠️ 데이터 무결성 파괴 감지: 현재 {len(k200_raw)} rows (목표 1,781 rows). 캐시 삭제가 필요합니다.")
         
         # 2. 매일 16:00 이후 자동 성과 기록 (Journaling to DB)

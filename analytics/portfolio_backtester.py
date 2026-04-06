@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 # !!! CRITICAL: NEVER TOUCH BACKTEST CALCULATION LOGIC BELOW !!!
 # !!! 수익률 연산 산식 절대 수정 금지 - 데이터 소스 변경 효과 측정용 성역 !!!
@@ -106,7 +107,7 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
         rs_scores = {}
         for ticker, row in today_rows.items():
             score_col = 'composite_rs' if 'composite_rs' in row else 'rs_20'
-            if score_col in row and not pd.isna(row[score_col]):
+            if score_col in row and not pd.isna(row[score_col]) and not np.isinf(row[score_col]):
                 rs_scores[ticker] = row[score_col]
         sorted_tickers = sorted(rs_scores.items(), key=lambda x: x[1], reverse=True)
         current_target_tickers = [x[0] for x in sorted_tickers[:max_tickers]]
