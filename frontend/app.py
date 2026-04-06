@@ -190,7 +190,7 @@ def main():
             strat_mode = st.radio(
                 "🎯 전략 운용 모드 선택 (종목 수)",
                 ["🚀 3종목 집중 투자 (수익률형)", "🛡️ 5종목 균형 투자 (표준형)", "🏦 10종목 전방위 투자 (안정형)"],
-                index=0,
+                index=1,
                 horizontal=True
             )
         
