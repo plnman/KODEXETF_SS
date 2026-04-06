@@ -109,7 +109,7 @@ def load_backtest_from_db_cache(max_tickers: int):
         m = meta.data[0]
         hist = sb.table('backtest_history_cache').select('date,total_value')\
             .eq('app_version', APP_VERSION).eq('max_tickers', max_tickers)\
-            .order('date').execute()
+            .order('date').limit(5000).execute()
         df_history = pd.DataFrame(hist.data) if hist.data else pd.DataFrame()
         trades = sb.table('backtest_trades_cache').select('*')\
             .eq('app_version', APP_VERSION).eq('max_tickers', max_tickers)\
