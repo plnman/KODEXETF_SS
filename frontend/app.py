@@ -18,9 +18,9 @@ from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity
 from analytics.integrity_monitor import log_backtest_integrity
 
-# [V3.5.7] - 2-Track: 백테스트 DB캐시 + 실전신호 경량 분리
-APP_VERSION = "V3.5.7"
-APP_BUILD_DATE = "2026-04-06"
+# [V3.5.8] - Hotfix: 연도별 KOSPI200 NaN 정렬 버그 수정 (24/25/26년 미표시 해결)
+APP_VERSION = "V3.5.8"
+APP_BUILD_DATE = "2026-04-07"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
@@ -583,15 +583,19 @@ def main():
             st.line_chart(chart_df, color=["#ff4b4b", "#1f77b4"])
             
             # 연도별 테이블
+            # [V3.5.8] 버그수정: bm_df 날짜 불일치(연말 NaN) → reindex+ffill로 24/25/26년 복원
             yearly_df = hist_df[['total_value']].copy()
-            yearly_df['ko200_close'] = bm_df['close']
+            ko_close_aligned = bm_df['close'].reindex(yearly_df.index).ffill().bfill()
+            yearly_df['ko200_close'] = ko_close_aligned
             yearly_df.index = pd.to_datetime(yearly_df.index)
             y_last = yearly_df.resample('YE').last()
             irp_p = pd.Series([50000000] + y_last['total_value'].tolist()).pct_change().dropna() * 100
-            ko_p = pd.Series([first_open] + y_last['ko200_close'].tolist()).pct_change().dropna() * 100
-            y_data = [{"연도": "✨ [TOTAL]", "IRP 수익률": total_pct, "KOSPI 200": ((bm_df['close'].iloc[-1]/first_open)-1)*100, "Alpha": f"{total_pct - ((bm_df['close'].iloc[-1]/first_open)-1)*100:+.2f}%"}]
+            ko_p  = pd.Series([first_open]  + y_last['ko200_close'].tolist()).pct_change().dropna() * 100
+            # TOTAL: 백테스트 기간 기준 일관성 (실시간 가격 변동 방지)
+            ko_total = ((y_last['ko200_close'].iloc[-1] / first_open) - 1) * 100
+            y_data = [{"연도": "✨ [TOTAL]", "IRP 수익률(%)": round(total_pct, 2), "KOSPI 200(%)": round(ko_total, 2), "Alpha(pp)": round(total_pct - ko_total, 2)}]
             for y, ir, ko in zip(y_last.index.year, irp_p, ko_p):
-                y_data.append({"연도": f"{y}년", "IRP 수익률": ir, "KOSPI 200": ko, "Alpha": f"{ir-ko:+.2f}%"})
+                y_data.append({"연도": f"{y}년", "IRP 수익률(%)": round(ir, 2), "KOSPI 200(%)": round(ko, 2), "Alpha(pp)": round(ir - ko, 2)})
             st.dataframe(pd.DataFrame(y_data), use_container_width=True, hide_index=True)
             
             st.divider()
