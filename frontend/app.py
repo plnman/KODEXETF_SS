@@ -18,8 +18,8 @@ from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity
 from analytics.integrity_monitor import log_backtest_integrity
 
-# [V3.5.8] - Hotfix: 연도별 KOSPI200 NaN 정렬 버그 수정 (24/25/26년 미표시 해결)
-APP_VERSION = "V3.5.8"
+# [V3.5.9] - Hotfix2: bm_df empty/KeyError 완전 방어, FDR 캐시 24h, IRP 연도 표시 보장
+APP_VERSION = "V3.5.9"
 APP_BUILD_DATE = "2026-04-07"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
@@ -186,7 +186,7 @@ def load_live_signals_only():
     return all_signals, is_bull_now, k200, integrity
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=86400, show_spinner=False)  # [V3.5.9] 24시간 캐시 (FDR 간헐적 실패 방어)
 def load_k200_benchmark():
     """[V3.5.7] Tab 2 벤치마크용 K200 전체 히스토리 (2019-현재)"""
     import FinanceDataReader as fdr
@@ -196,7 +196,11 @@ def load_k200_benchmark():
         df.columns = [str(c).lower() for c in df.columns]
         if 'date' not in df.columns: df = df.reset_index().rename(columns={'Date': 'date', 'index': 'date'})
         df['date'] = pd.to_datetime(df['date']).dt.strftime('%Y-%m-%d')
-        return df.sort_values('date').set_index('date')
+        result = df.sort_values('date').set_index('date')
+        # close 컬럼 정규화 (adj close → close 폴백)
+        if 'close' not in result.columns and 'adj close' in result.columns:
+            result = result.rename(columns={'adj close': 'close'})
+        return result if 'close' in result.columns else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
@@ -583,19 +587,32 @@ def main():
             st.line_chart(chart_df, color=["#ff4b4b", "#1f77b4"])
             
             # 연도별 테이블
-            # [V3.5.8] 버그수정: bm_df 날짜 불일치(연말 NaN) → reindex+ffill로 24/25/26년 복원
+            # [V3.5.9] bm_df empty/KeyError 완전 방어 + irp_p 기반 연도 보장
             yearly_df = hist_df[['total_value']].copy()
-            ko_close_aligned = bm_df['close'].reindex(yearly_df.index).ffill().bfill()
-            yearly_df['ko200_close'] = ko_close_aligned
             yearly_df.index = pd.to_datetime(yearly_df.index)
+            bm_has_close = (not bm_df.empty) and ('close' in bm_df.columns)
+            if bm_has_close:
+                ko_close_aligned = bm_df['close'].reindex(
+                    yearly_df.index.strftime('%Y-%m-%d')).ffill().bfill()
+                ko_close_aligned.index = yearly_df.index
+                yearly_df['ko200_close'] = ko_close_aligned.values
+            else:
+                yearly_df['ko200_close'] = float('nan')
             y_last = yearly_df.resample('YE').last()
+            # irp_p는 DB 기반으로 항상 전체 연도 보장
             irp_p = pd.Series([50000000] + y_last['total_value'].tolist()).pct_change().dropna() * 100
-            ko_p  = pd.Series([first_open]  + y_last['ko200_close'].tolist()).pct_change().dropna() * 100
-            # TOTAL: 백테스트 기간 기준 일관성 (실시간 가격 변동 방지)
-            ko_total = ((y_last['ko200_close'].iloc[-1] / first_open) - 1) * 100
-            y_data = [{"연도": "✨ [TOTAL]", "IRP 수익률(%)": round(total_pct, 2), "KOSPI 200(%)": round(ko_total, 2), "Alpha(pp)": round(total_pct - ko_total, 2)}]
-            for y, ir, ko in zip(y_last.index.year, irp_p, ko_p):
-                y_data.append({"연도": f"{y}년", "IRP 수익률(%)": round(ir, 2), "KOSPI 200(%)": round(ko, 2), "Alpha(pp)": round(ir - ko, 2)})
+            years  = list(y_last.index.year)
+            ko_vals = y_last['ko200_close'].tolist()
+            ko_series = pd.Series([first_open] + ko_vals).pct_change().dropna() * 100
+            ko_total = ((ko_vals[-1] / first_open) - 1) * 100 if bm_has_close and first_open > 1 else float('nan')
+            y_data = [{"연도": "✨ [TOTAL]", "IRP 수익률(%)": round(total_pct, 2),
+                       "KOSPI 200(%)": round(ko_total, 2) if not pd.isna(ko_total) else "N/A",
+                       "Alpha(pp)": round(total_pct - ko_total, 2) if not pd.isna(ko_total) else "N/A"}]
+            for y, ir in zip(years, irp_p):   # irp_p 기준으로 모든 연도 표시 보장
+                ko = ko_series.iloc[years.index(y)] if y in years and len(ko_series) > years.index(y) else float('nan')
+                ko_str = round(ko, 2) if not pd.isna(ko) else "N/A"
+                alpha_str = round(ir - ko, 2) if not pd.isna(ko) else "N/A"
+                y_data.append({"연도": f"{y}년", "IRP 수익률(%)": round(ir, 2), "KOSPI 200(%)": ko_str, "Alpha(pp)": alpha_str})
             st.dataframe(pd.DataFrame(y_data), use_container_width=True, hide_index=True)
             
             st.divider()
