@@ -19,7 +19,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.5.9] - Hotfix2: bm_df empty/KeyError 완전 방어, FDR 캐시 24h, IRP 연도 표시 보장
-APP_VERSION = "V3.5.11"
+APP_VERSION = "V3.5.12"
 APP_BUILD_DATE = "2026-04-07"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
@@ -183,7 +183,7 @@ def load_live_signals_only():
 
     is_bull_now = bool(regime.iloc[-1]) if not regime.empty else False
     integrity = {"score": 100, "detail": f"실전신호 최근 {LIVE_LOOKBACK_DAYS}일 로드 ({len(all_signals)}/22 종목)"}
-    return all_signals, is_bull_now, k200, integrity
+    return all_signals, is_bull_now, k200_sig, integrity  # [V3.5.12] k200_sig 반환 (adx_14/sigma_20/sigma_avg 포함)
 
 
 @st.cache_data(ttl=86400, show_spinner=False)  # [V3.5.9] 24시간 캐시 (FDR 간헐적 실패 방어)
@@ -644,27 +644,107 @@ def main():
     with tab3:
         st.header("🩺 투명한 하이브리드 엔진 설계도 (무결성 공시)")
         
-        col_reg, col_param = st.columns([1, 2])
-        
-        with col_reg:
-            st.subheader("📡 시장 레짐(Regime) 실시간 상태")
-            regime_status = "🔥 BULL (공격 모드)" if is_bull_now else "🛡️ STABLE (안정 모드)"
-            st.info(f"**현재 상태:** {regime_status}")
-            
-            # 레짐 판독 공식 공시
-            st.markdown(r"""
-            **[레짐 판독 로직]**
-            - **기준:** KODEX 200의 ADX 14일선 Z-Score
-            - **공식:** $Z = (ADX_{now} - ADX_{\mu}) / ADX_{\sigma}$
-            - **임계값:** $Z > 2.0$ 진입 시 공격, $Z < 1.0$ 하향 시 안정 모드
-            """)
-            
-        with col_param:
-            st.subheader("⚙️ 종목별 개별 최적화 파라미터 (TICKER_PARAMS)")
-            # strategy.py의 TICKER_PARAMS를 테이블로 공시
-            param_df = pd.DataFrame(TICKER_PARAMS).T.reset_index()
-            param_df.columns = ["종목명", "변동성 상수(K)", "수급 임계치(MFI)", "추세 임계치(ADX)"]
-            st.table(param_df)
+        # [V3.5.12] 전일 시장 레짐 판독 엔진 - 수치 기반 정보판
+        st.subheader("📡 전일 시장 레짐 판독 엔진 (KODEX 200 기반)")
+
+        # 실시간 레짐 수치 계산
+        _adx_now = _adx_mu = _adx_sigma = _z_now = _mfi_now = _sigma_20 = _sigma_avg = float('nan')
+        if not k200_raw.empty and 'adx_14' in k200_raw.columns:
+            _adx_series = k200_raw['adx_14'].dropna()
+            if len(_adx_series) >= 2:
+                _adx_now   = k200_raw['adx_14'].iloc[-1]
+                _adx_mu    = k200_raw['adx_14'].rolling(252).mean().iloc[-1]
+                _adx_sigma = k200_raw['adx_14'].rolling(252).std().iloc[-1]
+                _z_now     = (_adx_now - _adx_mu) / _adx_sigma if _adx_sigma > 0 else float('nan')
+            if 'mfi' in k200_raw.columns:
+                _mfi_now = k200_raw['mfi'].iloc[-1]
+            if 'sigma_20' in k200_raw.columns:
+                _sigma_20 = k200_raw['sigma_20'].iloc[-1]
+            if 'sigma_avg' in k200_raw.columns:
+                _sigma_avg = k200_raw['sigma_avg'].iloc[-1]
+
+        _z1_pass  = (not pd.isna(_z_now))  and _z_now  > 2.0
+        _z2_pass  = (not pd.isna(_mfi_now)) and _mfi_now > 40
+        _bull_color  = "#c0392b"
+        _stable_color = "#1565C0"
+        _regime_color = _bull_color if is_bull_now else _stable_color
+        _regime_label = "🚀 BULL (터보 공격)" if is_bull_now else "🛡️ STABLE (안정)"
+
+        # K값 설명: Dynamic K 공식 기반
+        _k_turbo_str   = "K_base × (σ₂₀/σ_avg) × <b>0.4</b> &nbsp;[Turbo 60% 할인 ON]"
+        _k_stable_str  = "K_base × (σ₂₀/σ_avg) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Turbo 할인 없음]"
+        _k_active      = _k_turbo_str if is_bull_now else _k_stable_str
+        _exit_active   = "SMA <b>5</b>일선 이탈 시 익절 (빠른 추격)" if is_bull_now else "vol_rank &lt; 0.3 → SMA <b>10</b>일 / 그외 → SMA <b>20</b>일"
+
+        _fmt = lambda v, d=2: f"{v:.{d}f}" if not pd.isna(v) else "N/A"
+
+        st.markdown(f"""
+<div style="background:#1a1a2e;border:1px solid {_regime_color};border-radius:10px;padding:18px 22px;margin-bottom:12px;">
+
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+    <span style="color:#aaa;font-size:0.85rem;">기준일: 직전 거래일 종가 | 데이터: KODEX 200 (069500)</span>
+    <span style="background:{_regime_color};color:#fff;font-weight:700;padding:4px 16px;border-radius:20px;font-size:1.05rem;">{_regime_label}</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+
+    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
+      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 1 &nbsp;·&nbsp; ADX 14일선</div>
+      <div style="color:#fff;font-size:1.1rem;font-weight:700;">현재 {_fmt(_adx_now)}</div>
+      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">252일 평균(μ) &nbsp;{_fmt(_adx_mu)}</div>
+      <div style="color:#aaa;font-size:0.82rem;">252일 표준편차(σ) &nbsp;{_fmt(_adx_sigma)}</div>
+    </div>
+
+    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
+      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 2 &nbsp;·&nbsp; Z-Score</div>
+      <div style="color:{'#FF6B6B' if _z1_pass else '#fff'};font-size:1.1rem;font-weight:700;">Z = {_fmt(_z_now)}</div>
+      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">공식: (ADX − μ) / σ</div>
+      <div style="color:#aaa;font-size:0.82rem;">Bull 진입 임계: <b style="color:#FFD700;">Z &gt; 2.0</b></div>
+      <div style="color:#aaa;font-size:0.82rem;">Stable 복귀 임계: <b style="color:#FFD700;">Z &lt; 1.0</b></div>
+      <div style="margin-top:6px;font-size:0.9rem;">{'✅ 임계 초과' if _z1_pass else '❌ 미달 ('+_fmt(_z_now)+' < 2.0)'}</div>
+    </div>
+
+    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
+      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 3 &nbsp;·&nbsp; MFI 스마트머니</div>
+      <div style="color:{'#FF6B6B' if _z2_pass else '#fff'};font-size:1.1rem;font-weight:700;">MFI = {_fmt(_mfi_now)}</div>
+      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">Bull 진입 조건: <b style="color:#FFD700;">MFI &gt; 40</b></div>
+      <div style="color:#aaa;font-size:0.82rem;">시장 전체 유동성 필터</div>
+      <div style="margin-top:6px;font-size:0.9rem;">{'✅ 조건 충족' if _z2_pass else '❌ 미달 ('+_fmt(_mfi_now)+' < 40)'}</div>
+    </div>
+
+    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;border:1px solid {_regime_color};">
+      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 4 &nbsp;·&nbsp; 최종 판정</div>
+      <div style="color:{_regime_color};font-size:1.05rem;font-weight:700;margin-bottom:4px;">{_regime_label}</div>
+      <div style="color:#aaa;font-size:0.82rem;">① Z &gt; 2.0 &nbsp;{'✅' if _z1_pass else '❌'}</div>
+      <div style="color:#aaa;font-size:0.82rem;">② MFI &gt; 40 &nbsp;{'✅' if _z2_pass else '❌'}</div>
+      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">① ② 동시 충족 시 BULL 진입</div>
+      <div style="color:#aaa;font-size:0.82rem;">히스테리시스: Z &lt; 1.0 시 복귀</div>
+    </div>
+
+  </div>
+
+  <div style="background:#0d0d1a;border-radius:8px;padding:10px 16px;">
+    <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:8px;">⚙️ 현재 레짐의 매매 파라미터 영향</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="color:#ccc;font-size:0.85rem;">
+        <span style="color:#aaa;">진입 K값 공식:</span><br>
+        <span style="color:#fff;">{_k_active}</span>
+        <span style="color:#aaa;font-size:0.78rem;"> &nbsp;(Dynamic K, 클램프 0.2~0.8)</span>
+      </div>
+      <div style="color:#ccc;font-size:0.85rem;">
+        <span style="color:#aaa;">청산선:</span><br>
+        <span style="color:#fff;">{_exit_active}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+""", unsafe_allow_html=True)
+
+        st.subheader("⚙️ 종목별 개별 최적화 파라미터 (TICKER_PARAMS)")
+        param_df = pd.DataFrame(TICKER_PARAMS).T.reset_index()
+        param_df.columns = ["종목명", "변동성 상수(K)", "수급 임계치(MFI)", "추세 임계치(ADX)"]
+        st.table(param_df)
 
         st.divider()
         
