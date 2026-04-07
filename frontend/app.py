@@ -19,12 +19,12 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.5.9] - Hotfix2: bm_df empty/KeyError 완전 방어, FDR 캐시 24h, IRP 연도 표시 보장
-APP_VERSION = "V3.5.10"
+APP_VERSION = "V3.5.11"
 APP_BUILD_DATE = "2026-04-07"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
-LIVE_LOOKBACK_DAYS = 400          # 실전신호 전용 최근 데이터 로딩 범위 (일)
+LIVE_LOOKBACK_DAYS = 500          # 실전신호 전용 최근 데이터 로딩 범위 (일) [V3.5.11: 레짐 Z-score 워밍업 280거래일 보장]
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
 from data_collector.supabase_client import get_supabase_client
@@ -364,7 +364,7 @@ def main():
     with c_badge1:
         st.success(f"✅ 데이터 무결성 검증 완료 ({APP_VERSION} Stable)")
     with c_badge2:
-        if st.button("데이터 강제 동기화 🔄"):
+        if st.button("실전 신호 새로고침 🔄"):
             load_live_signals_only.clear()
             load_k200_benchmark.clear()
             st.rerun()
