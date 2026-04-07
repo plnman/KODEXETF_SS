@@ -19,7 +19,7 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.5.9] - Hotfix2: bm_df empty/KeyError 완전 방어, FDR 캐시 24h, IRP 연도 표시 보장
-APP_VERSION = "V3.5.12"
+APP_VERSION = "V3.5.13"
 APP_BUILD_DATE = "2026-04-07"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
@@ -665,81 +665,68 @@ def main():
 
         _z1_pass  = (not pd.isna(_z_now))  and _z_now  > 2.0
         _z2_pass  = (not pd.isna(_mfi_now)) and _mfi_now > 40
-        _bull_color  = "#c0392b"
-        _stable_color = "#1565C0"
-        _regime_color = _bull_color if is_bull_now else _stable_color
         _regime_label = "🚀 BULL (터보 공격)" if is_bull_now else "🛡️ STABLE (안정)"
-
-        # K값 설명: Dynamic K 공식 기반
-        _k_turbo_str   = "K_base × (σ₂₀/σ_avg) × <b>0.4</b> &nbsp;[Turbo 60% 할인 ON]"
-        _k_stable_str  = "K_base × (σ₂₀/σ_avg) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[Turbo 할인 없음]"
-        _k_active      = _k_turbo_str if is_bull_now else _k_stable_str
-        _exit_active   = "SMA <b>5</b>일선 이탈 시 익절 (빠른 추격)" if is_bull_now else "vol_rank &lt; 0.3 → SMA <b>10</b>일 / 그외 → SMA <b>20</b>일"
-
         _fmt = lambda v, d=2: f"{v:.{d}f}" if not pd.isna(v) else "N/A"
 
-        st.markdown(f"""
-<div style="background:#1a1a2e;border:1px solid {_regime_color};border-radius:10px;padding:18px 22px;margin-bottom:12px;">
+        # 헤더 행: 기준일 + 판정 뱃지
+        _hcol1, _hcol2 = st.columns([3, 1])
+        with _hcol1:
+            st.caption("기준일: 직전 거래일 종가 | 데이터: KODEX 200 (069500)")
+        with _hcol2:
+            if is_bull_now:
+                st.error(_regime_label)
+            else:
+                st.info(_regime_label)
 
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
-    <span style="color:#aaa;font-size:0.85rem;">기준일: 직전 거래일 종가 | 데이터: KODEX 200 (069500)</span>
-    <span style="background:{_regime_color};color:#fff;font-weight:700;padding:4px 16px;border-radius:20px;font-size:1.05rem;">{_regime_label}</span>
-  </div>
+        # STEP 1~4 카드 (st.columns 4분할)
+        _c1, _c2, _c3, _c4 = st.columns(4)
 
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px;">
+        with _c1:
+            st.markdown("**🔵 STEP 1 · ADX 14일선**")
+            st.metric("현재 ADX", _fmt(_adx_now))
+            st.caption(f"252일 평균(μ): {_fmt(_adx_mu)}")
+            st.caption(f"252일 표준편차(σ): {_fmt(_adx_sigma)}")
 
-    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
-      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 1 &nbsp;·&nbsp; ADX 14일선</div>
-      <div style="color:#fff;font-size:1.1rem;font-weight:700;">현재 {_fmt(_adx_now)}</div>
-      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">252일 평균(μ) &nbsp;{_fmt(_adx_mu)}</div>
-      <div style="color:#aaa;font-size:0.82rem;">252일 표준편차(σ) &nbsp;{_fmt(_adx_sigma)}</div>
-    </div>
+        with _c2:
+            st.markdown("**🔵 STEP 2 · Z-Score**")
+            st.metric("Z = (ADX−μ)/σ", _fmt(_z_now),
+                      delta="임계 초과 ✅" if _z1_pass else f"미달 ❌ (임계: > 2.0)",
+                      delta_color="normal" if _z1_pass else "inverse")
+            st.caption("Bull 진입: Z > 2.0")
+            st.caption("Stable 복귀: Z < 1.0")
 
-    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
-      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 2 &nbsp;·&nbsp; Z-Score</div>
-      <div style="color:{'#FF6B6B' if _z1_pass else '#fff'};font-size:1.1rem;font-weight:700;">Z = {_fmt(_z_now)}</div>
-      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">공식: (ADX − μ) / σ</div>
-      <div style="color:#aaa;font-size:0.82rem;">Bull 진입 임계: <b style="color:#FFD700;">Z &gt; 2.0</b></div>
-      <div style="color:#aaa;font-size:0.82rem;">Stable 복귀 임계: <b style="color:#FFD700;">Z &lt; 1.0</b></div>
-      <div style="margin-top:6px;font-size:0.9rem;">{'✅ 임계 초과' if _z1_pass else '❌ 미달 ('+_fmt(_z_now)+' < 2.0)'}</div>
-    </div>
+        with _c3:
+            st.markdown("**🔵 STEP 3 · MFI 스마트머니**")
+            st.metric("MFI (시장 유동성)", _fmt(_mfi_now),
+                      delta="조건 충족 ✅" if _z2_pass else f"미달 ❌ (임계: > 40)",
+                      delta_color="normal" if _z2_pass else "inverse")
+            st.caption("시장 전체 유동성 필터")
+            st.caption("Bull 진입 조건: MFI > 40")
 
-    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;">
-      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 3 &nbsp;·&nbsp; MFI 스마트머니</div>
-      <div style="color:{'#FF6B6B' if _z2_pass else '#fff'};font-size:1.1rem;font-weight:700;">MFI = {_fmt(_mfi_now)}</div>
-      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">Bull 진입 조건: <b style="color:#FFD700;">MFI &gt; 40</b></div>
-      <div style="color:#aaa;font-size:0.82rem;">시장 전체 유동성 필터</div>
-      <div style="margin-top:6px;font-size:0.9rem;">{'✅ 조건 충족' if _z2_pass else '❌ 미달 ('+_fmt(_mfi_now)+' < 40)'}</div>
-    </div>
+        with _c4:
+            st.markdown("**🔵 STEP 4 · 최종 판정**")
+            if is_bull_now:
+                st.error(_regime_label)
+            else:
+                st.info(_regime_label)
+            st.caption(f"① Z > 2.0   {'✅' if _z1_pass else '❌'}")
+            st.caption(f"② MFI > 40  {'✅' if _z2_pass else '❌'}")
+            st.caption("① ② 동시 충족 시 BULL 진입")
+            st.caption("히스테리시스: Z < 1.0 시 Stable 복귀")
 
-    <div style="background:#0d0d1a;border-radius:8px;padding:12px 14px;border:1px solid {_regime_color};">
-      <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:6px;">STEP 4 &nbsp;·&nbsp; 최종 판정</div>
-      <div style="color:{_regime_color};font-size:1.05rem;font-weight:700;margin-bottom:4px;">{_regime_label}</div>
-      <div style="color:#aaa;font-size:0.82rem;">① Z &gt; 2.0 &nbsp;{'✅' if _z1_pass else '❌'}</div>
-      <div style="color:#aaa;font-size:0.82rem;">② MFI &gt; 40 &nbsp;{'✅' if _z2_pass else '❌'}</div>
-      <div style="color:#aaa;font-size:0.82rem;margin-top:4px;">① ② 동시 충족 시 BULL 진입</div>
-      <div style="color:#aaa;font-size:0.82rem;">히스테리시스: Z &lt; 1.0 시 복귀</div>
-    </div>
-
-  </div>
-
-  <div style="background:#0d0d1a;border-radius:8px;padding:10px 16px;">
-    <div style="color:#7986CB;font-size:0.78rem;font-weight:700;margin-bottom:8px;">⚙️ 현재 레짐의 매매 파라미터 영향</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-      <div style="color:#ccc;font-size:0.85rem;">
-        <span style="color:#aaa;">진입 K값 공식:</span><br>
-        <span style="color:#fff;">{_k_active}</span>
-        <span style="color:#aaa;font-size:0.78rem;"> &nbsp;(Dynamic K, 클램프 0.2~0.8)</span>
-      </div>
-      <div style="color:#ccc;font-size:0.85rem;">
-        <span style="color:#aaa;">청산선:</span><br>
-        <span style="color:#fff;">{_exit_active}</span>
-      </div>
-    </div>
-  </div>
-
-</div>
-""", unsafe_allow_html=True)
+        # 매매 파라미터 영향
+        st.markdown("**⚙️ 현재 레짐의 매매 파라미터 영향**")
+        _p1, _p2 = st.columns(2)
+        with _p1:
+            if is_bull_now:
+                st.markdown("**진입 K값 공식**\n\nK_base × (σ₂₀/σ_avg) × **0.4** `[Turbo 60% 할인 ON]` *(Dynamic K, 클램프 0.2~0.8)*")
+            else:
+                st.markdown("**진입 K값 공식**\n\nK_base × (σ₂₀/σ_avg) `[Turbo 할인 없음]` *(Dynamic K, 클램프 0.2~0.8)*")
+        with _p2:
+            if is_bull_now:
+                st.markdown("**청산선**\n\nSMA **5**일선 이탈 시 익절 *(빠른 추격)*")
+            else:
+                st.markdown("**청산선**\n\nvol_rank < 0.3 → SMA **10**일 / 그외 → SMA **20**일")
 
         st.subheader("⚙️ 종목별 개별 최적화 파라미터 (TICKER_PARAMS)")
         param_df = pd.DataFrame(TICKER_PARAMS).T.reset_index()
