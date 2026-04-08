@@ -33,7 +33,7 @@ TARGET_ETFS = {
     "453850.KS": "KODEX 인도Nifty50",
     "465610.KS": "KODEX 미국반도체MV",
     "461580.KS": "KODEX 미국배당프리미엄액티브",
-    "480600.KS": "KODEX K방산TOP10",
+    "0080G0": "KODEX K방산TOP10",
     "244580.KS": "KODEX 바이오",
     "315930.KS": "KODEX Top5PlusTR",
     # [NEW] AI 인프라 확장 편입 (V3.6.0)
