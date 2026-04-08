@@ -404,52 +404,8 @@ def main():
     integrity_status = "🟢 정상 (Verified)" if abs(diff_ret) < 0.1 else "🔴 주의 (Anomaly Detected)"
     c_int4.metric("수익률 정밀 오차", f"{diff_ret:+.2f}%", integrity_status)
 
-    # 매일 16:00 이후 실전 신호 DB 저장
-    now_h = datetime.now().hour
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    if now_h >= 16:
-        try:
-            journal_payload = {
-                "record_date": today_str,
-                "cumulative_return": float(actual_ret),
-                "cagr": float(port_res.get('cagr', 0.0)),
-                "mdd": float(port_res.get('mdd', 0.0)),
-                "version": APP_VERSION
-            }
-            supabase.table('backtest_history').upsert(journal_payload).execute()
-            for sig_name, sig_df in all_signals.items():
-                latest = sig_df.iloc[-1]
-                supabase.table('daily_signals').upsert({
-                    "signal_date": today_str, "ticker": sig_name,
-                    "close": float(latest.get('close', 0)),
-                    "target_break_price": float(latest.get('target_break_price', 0)),
-                    "composite_rs": float(latest.get('composite_rs', 0)),
-                    "buy_signal": bool(latest.get('execute_buy_T_plus_1', False)),
-                    "exit_signal": bool(latest.get('execute_exit_T_plus_1', False)),
-                    "mfi": float(latest.get('mfi', 0)),
-                }).execute()
-        except Exception:
-            pass
-        try:
-            import FinanceDataReader as fdr
-            df_nv = fdr.DataReader("069500").reset_index()
-            df_nv.columns = [c.lower() for c in df_nv.columns]
-            df_nv['mfi'] = calculate_mfi(df_nv)
-            df_nv['intraday_intensity'] = calculate_intraday_intensity(df_nv)
-            nv_sig = build_signals_and_targets(df_nv.dropna().reset_index(drop=True), "KODEX 200")
-            n_latest = nv_sig.iloc[-1]
-            supabase.table('backtest_history_naver').upsert(journal_payload).execute()
-            supabase.table('daily_signals_naver').upsert({
-                "signal_date": today_str, "ticker": "KODEX 200",
-                "close": float(n_latest.get('close', 0)),
-                "target_break_price": float(n_latest.get('target_break_price', 0)),
-                "composite_rs": float(n_latest.get('composite_rs', 0)),
-                "buy_signal": bool(n_latest.get('execute_buy_T_plus_1', False)),
-                "exit_signal": bool(n_latest.get('execute_exit_T_plus_1', False)),
-                "mfi": float(n_latest.get('mfi', 0)),
-            }).execute()
-        except Exception:
-            pass
+    # [V3.6.1] 실전 신호 DB 저장은 GitHub Actions (daily_signal.yml) 이 매일 16:10 KST 자동 수행
+    # app.py에서의 시간 조건부 저장 로직 제거 — 앱 오픈 여부와 무관하게 신뢰성 있게 기록됨
 
     st.divider()
     if not all_signals:
@@ -785,25 +741,50 @@ def main():
         st.header("📈 실전 성과 궤적 (시그널 모니터링)")
         st.markdown("매일 16:00 기준으로 자동 기록된 시그널과 수익률 추이를 추적합니다.")
 
-        # [Fix 3-A] 일별 누적 수익률 추이
-        st.subheader("📊 포트폴리오 누적 수익률 추이")
+        # [V3.6.1] 실전 포트폴리오 누적 수익률 추이
+        st.subheader("📊 실전 포트폴리오 누적 수익률 (2026-04-08 시작)")
+        LIVE_START_CAPITAL = 50_000_000.0
         try:
-            hist_res = supabase.table('backtest_history').select('*').order('record_date', desc=False).execute()
-            if hist_res.data:
-                hist_df = pd.DataFrame(hist_res.data)
-                hist_df['record_date'] = pd.to_datetime(hist_df['record_date'])
-                hist_df = hist_df.set_index('record_date')
-                st.line_chart(hist_df[['cumulative_return']])
-                st.dataframe(hist_df[['cumulative_return','cagr','mdd','version']].sort_index(ascending=False).head(30),
-                             use_container_width=True)
+            live_res = supabase.table('live_portfolio_history').select('date,total_value').order('date', desc=False).execute()
+            if live_res.data and len(live_res.data) >= 1:
+                live_df = pd.DataFrame(live_res.data)
+                live_df['date'] = pd.to_datetime(live_df['date'])
+                live_df['실전 수익률(%)'] = (live_df['total_value'] / LIVE_START_CAPITAL - 1) * 100
+                live_df = live_df.set_index('date')
+
+                # 실전 매매 이력 테이블
+                trade_res = supabase.table('live_trades').select('*').order('execute_date', desc=True).limit(50).execute()
+                col_chart, col_stats = st.columns([2, 1])
+                with col_chart:
+                    st.line_chart(live_df[['실전 수익률(%)']])
+                with col_stats:
+                    last_val   = float(live_df['total_value'].iloc[-1])
+                    last_ret   = float(live_df['실전 수익률(%)'].iloc[-1])
+                    n_days     = len(live_df)
+                    st.metric("현재 포트폴리오 가치", f"{last_val:,.0f}원")
+                    st.metric("누적 수익률", f"{last_ret:+.2f}%")
+                    st.metric("운용 기간", f"{n_days}일")
+
+                # 실전 체결 이력
+                st.subheader("📋 실전 매매 체결 이력")
+                if trade_res.data:
+                    trade_df = pd.DataFrame(trade_res.data)
+                    trade_df = trade_df[['execute_date','signal_date','ticker','action','execute_price','units','amount']]
+                    trade_df.columns = ['체결일','신호일','종목','매매','체결가','수량','금액']
+                    trade_df['체결가'] = trade_df['체결가'].apply(lambda x: f"{x:,.0f}원")
+                    trade_df['금액']   = trade_df['금액'].apply(lambda x: f"{x:,.0f}원")
+                    st.dataframe(trade_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("아직 체결 기록이 없습니다. 첫 매매 신호 발생 익일 09시 이후 자동 기록됩니다.")
             else:
-                st.info("🕐 아직 기록된 데이터가 없습니다. 오늘 오후 4시 이후 자동 적재됩니다.")
+                st.info("🕐 실전 포트폴리오 데이터 없음 — 오늘 16:10 KST 첫 기록 예정.")
         except Exception as e:
-            err_str = str(e)
-            if 'PGRST205' in err_str or 'backtest_history' in err_str:
-                st.warning("🛠️ DB 테이블이 아직 생성되지 않았습니다. Supabase에서 `backtest_history` 테이블을 생성하면 자동 적재됩니다.")
+            if 'live_portfolio_history' in str(e):
+                st.warning("🛠️ Supabase에서 live_portfolio_history / live_trades 테이블을 생성해주세요. (schema/live_trading_tables.sql)")
             else:
-                st.error(f"수익률 이력 조회 실패: {e}")
+                st.error(f"실전 수익률 조회 실패: {e}")
+
+        st.divider()
 
         st.divider()
 
