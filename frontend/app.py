@@ -18,9 +18,9 @@ from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity
 from analytics.integrity_monitor import log_backtest_integrity
 
-# [V3.5.9] - Hotfix2: bm_df empty/KeyError 완전 방어, FDR 캐시 24h, IRP 연도 표시 보장
-APP_VERSION = "V3.5.13"
-APP_BUILD_DATE = "2026-04-07"
+# [V3.6.0] - ATR 2.5 최적화 + KODEX AI전력핵심설비(487240) 23종목 편입
+APP_VERSION = "V3.6.0"
+APP_BUILD_DATE = "2026-04-08"
 STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 # -------------------------------------------------------------------------------------
-# [V3.1.2 INTEGRITY ENGINE] EMERGENCY RECOVERY SYNC (2026-04-01 16:40) 🕋🚀
+# [V3.6.0] ATR_MULTIPLIER 3.0→2.5 최적화 + KODEX AI전력핵심설비(487240) 편입
 # -------------------------------------------------------------------------------------
 TICKER_PARAMS = {
     "KODEX 200": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
@@ -28,10 +28,12 @@ TICKER_PARAMS = {
     "KODEX K방산TOP10": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
     "KODEX 바이오": {'k': 0.2, 'mfi': 60, 'adx_threshold': 15},
     "KODEX Top5PlusTR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
+    # [NEW] AI 인프라 확장 편입 (V3.6.0)
+    "KODEX AI전력핵심설비": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
 }
 
-# 공통 하드 스탑 방벽 (과도한 5일선 칼손절 방지를 위해 3.0 유지)
-ATR_MULTIPLIER = 3.0 
+# 공통 하드 스탑 방벽 (V3.6.0: 백테스트 최적화 결과 2.5 채택 — MDD -30.9%→-24.5%, 수익 +109%p)
+ATR_MULTIPLIER = 2.5
 
 def calculate_dynamic_k(sigma_20: float, sigma_avg: float, k_base: float) -> float:
     if pd.isna(sigma_avg) or sigma_avg == 0:
