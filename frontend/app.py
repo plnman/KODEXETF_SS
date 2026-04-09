@@ -425,70 +425,108 @@ def main():
     
     # === TAB 1: AI 실전 시그널 보드 ===
     with tab1:
-        st.header(f"🎯 오늘의 AI 매매 권고 (TOP {max_tickers} 주도주)")
-        
-        # [무결성 보정] Composite RS 순위 추출 (추세 필터 적용) - 컬럼 누락 대비 방어 로직 포함
-        valid_signals = []
-        for n, d in all_signals.items():
-            if 'composite_rs' in d.columns:
-                valid_signals.append((n, d['composite_rs'].iloc[-1]))
-        
-        top_indices = sorted(valid_signals, key=lambda x: x[1], reverse=True)[:max_tickers]
-        
-        # [V3.5.1] 티커 역매핑 정보 생성
+        st.header("🎯 오늘의 AI 매매 권고")
+
+        # 1) RS 전체 순위
+        valid_signals = [
+            (n, d['composite_rs'].iloc[-1])
+            for n, d in all_signals.items()
+            if 'composite_rs' in d.columns
+        ]
+        rs_ranked = sorted(valid_signals, key=lambda x: x[1], reverse=True)
+        rs_rank_map = {name: i + 1 for i, (name, _) in enumerate(rs_ranked)}
+        top5_names = [name for name, _ in rs_ranked[:5]]
+
+        # 2) 현재 보유 종목 조회 (live_trades DB)
+        held_names = set()
+        try:
+            trades_res = supabase.table('live_trades').select('ticker,action').execute()
+            pos = {}
+            for r in (trades_res.data or []):
+                if r['action'] == 'BUY':
+                    pos[r['ticker']] = True
+                elif r['action'] == 'EXIT':
+                    pos.pop(r['ticker'], None)
+            held_names = set(pos.keys())
+        except Exception:
+            pass
+
+        # 3) 카드 목록 = TOP5 + 보유 종목 중 TOP5 밖인 것 (RS 순위 정렬, 최대 10장)
+        held_outside_top5 = sorted(
+            [n for n in held_names if n not in top5_names],
+            key=lambda n: rs_rank_map.get(n, 999)
+        )
+        card_list = top5_names + held_outside_top5  # 최대 10장
+
         NAME_TO_TICKER = {v: k for k, v in TARGET_ETFS.items()}
-        
-        # [NEW] 그리드 레이아웃 적용 (가공되지 않은 원칙 중심 노출)
+
+        # 범례
+        st.caption("🔵 테두리 = 현재 보유 종목 | TOP 5 RS 종목 + 보유 종목 표시 (최대 10장)")
+
         cols_per_row = 3
-        for r_idx in range(0, len(top_indices), cols_per_row):
-            row_indices = top_indices[r_idx : r_idx + cols_per_row]
+        def ck(b): return "✅" if b else "❌"
+
+        for r_idx in range(0, len(card_list), cols_per_row):
+            row_names = card_list[r_idx: r_idx + cols_per_row]
             cols = st.columns(cols_per_row)
-            for i, (name, score) in enumerate(row_indices):
-                df_curr = all_signals[name].iloc[-1]
-                target_p = df_curr['target_break_price']
-                curr_p = df_curr['close']
+            for i, name in enumerate(row_names):
+                if name not in all_signals:
+                    continue
+                df_curr   = all_signals[name].iloc[-1]
+                target_p  = df_curr['target_break_price']
+                curr_p    = df_curr['close']
                 ticker_symbol = NAME_TO_TICKER.get(name, "N/A")
-                
-                # 시그널 판독
-                if curr_p >= target_p:
+                is_held   = name in held_names
+                rs_rank   = rs_rank_map.get(name, 99)
+                rs_rank_txt = f"🏆 RS {rs_rank}위" if rs_rank <= 3 else f"RS {rs_rank}위"
+
+                params  = TICKER_PARAMS.get(name, {'k': 0.5, 'mfi': 60, 'adx_threshold': 20})
+                mfi_thr = params['mfi']
+                adx_thr = params['adx_threshold']
+                c1_pass = curr_p >= target_p
+                c2_pass = float(df_curr.get('mfi', 0)) > mfi_thr
+                c3_pass = float(df_curr.get('intraday_intensity', 0)) > 0
+                c4_pass = float(df_curr.get('adx_14', 0)) > adx_thr
+                passed  = sum([c1_pass, c2_pass, c3_pass, c4_pass])
+
+                exit_signal = bool(df_curr.get('exit_signal_T', False))
+                buy_signal  = bool(df_curr.get('buy_signal_T', False))
+
+                # 상태 결정
+                if is_held and exit_signal:
+                    sig_status = "🔴 [매도 신호]"
+                    color_hex  = "#FF4444"
+                    conclusion = "<span style='color:#FF4444;'>🚨 내일 시가 매도 집행</span>"
+                elif is_held:
+                    sig_status = "🔵 [보유 유지]"
+                    color_hex  = "#00BFFF"
+                    conclusion = "<span style='color:#00BFFF;'>📦 보유 중 — 매도 신호 없음</span>"
+                elif passed == 4:
                     sig_status = "🟢 [BUY/HOLD]"
-                    color_hex = "#00FF00"
+                    color_hex  = "#00FF00"
+                    conclusion = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
                 elif curr_p >= target_p * 0.98:
                     sig_status = "🟡 [매수 대기]"
-                    color_hex = "#FFA500"
+                    color_hex  = "#FFA500"
+                    conclusion = "<span style='color:#FFA500;'>⏳ 조건 1개 미달 (근접)</span>"
                 else:
                     sig_status = "⚪ [관망/준비]"
-                    color_hex = "#AAAAAA"
-                
+                    color_hex  = "#AAAAAA"
+                    conclusion = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
+
+                # 보유 종목: 파란 테두리 + 배경 강조
+                border_style = "3px solid #00BFFF" if is_held else "2px solid #666"
+                bg_color     = "#0d1f2d" if is_held else "#1e1e1e"
+                held_badge   = "<span style='background:#00BFFF;color:#000;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:800;margin-left:8px;'>보유중</span>" if is_held else ""
+
                 with cols[i]:
-                    # 4조건 판독
-                    params = TICKER_PARAMS.get(name, {'k': 0.5, 'mfi': 60, 'adx_threshold': 20})
-                    mfi_thr = params['mfi']
-                    adx_thr = params['adx_threshold']
-                    
-                    c1_pass = curr_p >= target_p
-                    c2_pass = df_curr.get('mfi', 0) > mfi_thr
-                    c3_pass = df_curr.get('intraday_intensity', 0) > 0
-                    c4_pass = df_curr.get('adx_14', 0) > adx_thr
-                    passed = sum([c1_pass, c2_pass, c3_pass, c4_pass])
-                    
-                    def ck(b): return "✅" if b else "❌"
-                    
-                    # RS 순위
-                    rs_rank = [x[0] for x in sorted(valid_signals, key=lambda x: x[1], reverse=True)].index(name) + 1
-                    rs_rank_txt = f"🏆 RS {rs_rank}위" if rs_rank <= 3 else f"RS {rs_rank}위"
-                    
-                    if passed == 4:
-                        conclusion = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
-                    elif passed == 3:
-                        conclusion = "<span style='color:#FFA500;'>⏳ 조건 1개 미달 (근접)</span>"
-                    else:
-                        conclusion = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
-                    
                     st.markdown(f"""
-                    <div style="border:2px solid #666; border-radius:12px; padding:20px; margin-bottom:15px; background-color:#1e1e1e; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+                    <div style="border:{border_style}; border-radius:12px; padding:20px; margin-bottom:15px; background-color:{bg_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                            <span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>
+                            <span style="display:flex; align-items:center;">
+                                <span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>
+                                {held_badge}
+                            </span>
                             <span style="color:#FFF; font-size:0.9rem; font-weight:bold;">{rs_rank_txt}</span>
                         </div>
                         <div style="font-size:1.6rem; font-weight:900; color:{color_hex}; margin-bottom:4px;">
@@ -509,9 +547,9 @@ def main():
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="font-size:1.1rem; color:#fff; line-height:1.6;">
                             <div style="margin-bottom:4px;">{ck(c1_pass)} <b>가격 돌파</b> &nbsp; <span style='color:#DDD;'>({curr_p:,.0f} {'≥' if c1_pass else '<'} {target_p:,.0f})</span></div>
-                            <div style="margin-bottom:4px;">{ck(c2_pass)} <b>스마트머니(MFI)</b> &nbsp; <span style='color:#DDD;'>({df_curr.get('mfi',0):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
+                            <div style="margin-bottom:4px;">{ck(c2_pass)} <b>스마트머니(MFI)</b> &nbsp; <span style='color:#DDD;'>({float(df_curr.get('mfi',0)):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
                             <div style="margin-bottom:4px;">{ck(c3_pass)} <b>일봉 지배력(II)</b> &nbsp; <span style='color:#DDD;'>({'지배(양수)' if c3_pass else '미지배(음수)'})</span></div>
-                            <div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style='color:#DDD;'>({df_curr.get('adx_14',0):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
+                            <div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style='color:#DDD;'>({float(df_curr.get('adx_14',0)):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
                         </div>
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="font-size:1.2rem; font-weight:bold;">{conclusion}</div>
