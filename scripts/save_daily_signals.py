@@ -267,21 +267,13 @@ def _calc_cash() -> float:
 
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 def main():
-    task2_only = "--task2-only" in sys.argv
-
     print("=" * 60)
-    if task2_only:
-        print(f" KODEX IRP 체결 기록 전용 (TASK 2) — KST {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
-    else:
-        print(f" KODEX IRP 실전 신호/매매 자동 기록 — KST {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f" KODEX IRP 실전 신호/매매 자동 기록 — KST {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
-    if task2_only:
-        task2_record_executions()
-    else:
-        all_today_signals = task1_save_signals()
-        task2_record_executions()
-        task3_update_portfolio(all_today_signals)
+    all_today_signals = task1_save_signals()
+    task2_record_executions()
+    task3_update_portfolio(all_today_signals)
 
     print("\n[완료]")
 
