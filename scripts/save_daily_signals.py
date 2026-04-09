@@ -154,8 +154,9 @@ def task2_record_executions():
         if not fdr_code:
             continue
 
-        # 오늘 시가 조회
-        df_today = load_ticker(fdr_code, start=TODAY_STR)
+        # 오늘 시가 조회 (load_ticker의 len<30 필터 우회를 위해 60일치 조회 후 오늘 행 필터)
+        recent_start = (now_kst - timedelta(days=60)).strftime("%Y-%m-%d")
+        df_today = load_ticker(fdr_code, start=recent_start)
         if df_today is None or df_today.empty:
             continue
         today_row = df_today[df_today['date'].dt.strftime('%Y-%m-%d') == TODAY_STR]
