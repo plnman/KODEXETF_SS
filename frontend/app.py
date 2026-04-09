@@ -451,17 +451,34 @@ def main():
         except Exception:
             pass
 
-        # 3) 카드 목록 = TOP5 + 보유 종목 중 TOP5 밖인 것 (RS 순위 정렬, 최대 10장)
-        held_outside_top5 = sorted(
-            [n for n in held_names if n not in top5_names],
-            key=lambda n: rs_rank_map.get(n, 999)
+        # 2-B) 매수 대기 종목: 전날 buy_signal=True인데 아직 live_trades 체결 기록 없는 종목
+        # → 오늘 아침 9시에 매수해야 하지만 16:10 전까지 live_trades에 기록이 없는 구간 커버
+        pending_buy_names = set()
+        try:
+            import datetime as _dt
+            yesterday_str = (_dt.date.today() - _dt.timedelta(days=1)).strftime('%Y-%m-%d')
+            # 주말/월요일 보정: 토=5, 일=6이면 금요일로
+            wd = _dt.date.today().weekday()
+            if wd == 0:   # 월요일 → 금요일 신호
+                yesterday_str = (_dt.date.today() - _dt.timedelta(days=3)).strftime('%Y-%m-%d')
+            sig_yes = supabase.table('daily_signals').select('ticker,buy_signal').eq('signal_date', yesterday_str).execute()
+            for r in (sig_yes.data or []):
+                if r.get('buy_signal') and r['ticker'] not in held_names:
+                    pending_buy_names.add(r['ticker'])
+        except Exception:
+            pass
+
+        # 3) 카드 목록 = TOP5 + (보유 + 매수대기) 중 TOP5 밖인 것 (RS 순위 정렬, 최대 10장)
+        extra_names = sorted(
+            [(n in held_names, n) for n in (held_names | pending_buy_names) if n not in top5_names],
+            key=lambda x: (-int(x[0]), rs_rank_map.get(x[1], 999))
         )
-        card_list = top5_names + held_outside_top5  # 최대 10장
+        card_list = top5_names + [n for _, n in extra_names]  # 최대 10장
 
         NAME_TO_TICKER = {v: k for k, v in TARGET_ETFS.items()}
 
         # 범례
-        st.caption("🔵 테두리 = 현재 보유 종목 | TOP 5 RS 종목 + 보유 종목 표시 (최대 10장)")
+        st.caption("🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS + 관련 종목 표시")
 
         cols_per_row = 3
         def ck(b): return "✅" if b else "❌"
@@ -476,9 +493,10 @@ def main():
                 target_p  = df_curr['target_break_price']
                 curr_p    = df_curr['close']
                 ticker_symbol = NAME_TO_TICKER.get(name, "N/A")
-                is_held   = name in held_names
-                rs_rank   = rs_rank_map.get(name, 99)
-                rs_rank_txt = f"🏆 RS {rs_rank}위" if rs_rank <= 3 else f"RS {rs_rank}위"
+                is_held      = name in held_names
+                is_pending   = name in pending_buy_names
+                rs_rank      = rs_rank_map.get(name, 99)
+                rs_rank_txt  = f"🏆 RS {rs_rank}위" if rs_rank <= 3 else f"RS {rs_rank}위"
 
                 params  = TICKER_PARAMS.get(name, {'k': 0.5, 'mfi': 60, 'adx_threshold': 20})
                 mfi_thr = params['mfi']
@@ -490,34 +508,50 @@ def main():
                 passed  = sum([c1_pass, c2_pass, c3_pass, c4_pass])
 
                 exit_signal = bool(df_curr.get('exit_signal_T', False))
-                buy_signal  = bool(df_curr.get('buy_signal_T', False))
 
-                # 상태 결정
+                # 상태 결정 (우선순위: 매도 > 보유유지 > 매수대기 > BUY > 관망)
                 if is_held and exit_signal:
-                    sig_status = "🔴 [매도 신호]"
-                    color_hex  = "#FF4444"
-                    conclusion = "<span style='color:#FF4444;'>🚨 내일 시가 매도 집행</span>"
+                    sig_status   = "🔴 [매도 신호]"
+                    color_hex    = "#FF4444"
+                    border_style = "3px solid #FF4444"
+                    bg_color     = "#2d0d0d"
+                    held_badge   = "<span style='background:#FF4444;color:#fff;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:800;margin-left:8px;'>보유중</span>"
+                    conclusion   = "<span style='color:#FF4444;'>🚨 오늘 시가 매도 집행</span>"
                 elif is_held:
-                    sig_status = "🔵 [보유 유지]"
-                    color_hex  = "#00BFFF"
-                    conclusion = "<span style='color:#00BFFF;'>📦 보유 중 — 매도 신호 없음</span>"
+                    sig_status   = "🔵 [보유 유지]"
+                    color_hex    = "#00BFFF"
+                    border_style = "3px solid #00BFFF"
+                    bg_color     = "#0d1f2d"
+                    held_badge   = "<span style='background:#00BFFF;color:#000;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:800;margin-left:8px;'>보유중</span>"
+                    conclusion   = "<span style='color:#00BFFF;'>📦 보유 중 — 매도 신호 없음</span>"
+                elif is_pending:
+                    sig_status   = "⏰ [매수 대기]"
+                    color_hex    = "#FFD700"
+                    border_style = "3px solid #FFD700"
+                    bg_color     = "#2d2500"
+                    held_badge   = "<span style='background:#FFD700;color:#000;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:800;margin-left:8px;'>오늘 매수</span>"
+                    conclusion   = "<span style='color:#FFD700;'>⏰ 전일 신호 — 오늘 시가 매수 예정</span>"
                 elif passed == 4:
-                    sig_status = "🟢 [BUY/HOLD]"
-                    color_hex  = "#00FF00"
-                    conclusion = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
+                    sig_status   = "🟢 [BUY/HOLD]"
+                    color_hex    = "#00FF00"
+                    border_style = "2px solid #666"
+                    bg_color     = "#1e1e1e"
+                    held_badge   = ""
+                    conclusion   = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
                 elif curr_p >= target_p * 0.98:
-                    sig_status = "🟡 [매수 대기]"
-                    color_hex  = "#FFA500"
-                    conclusion = "<span style='color:#FFA500;'>⏳ 조건 1개 미달 (근접)</span>"
+                    sig_status   = "🟡 [매수 대기]"
+                    color_hex    = "#FFA500"
+                    border_style = "2px solid #666"
+                    bg_color     = "#1e1e1e"
+                    held_badge   = ""
+                    conclusion   = "<span style='color:#FFA500;'>⏳ 조건 1개 미달 (근접)</span>"
                 else:
-                    sig_status = "⚪ [관망/준비]"
-                    color_hex  = "#AAAAAA"
-                    conclusion = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
-
-                # 보유 종목: 파란 테두리 + 배경 강조
-                border_style = "3px solid #00BFFF" if is_held else "2px solid #666"
-                bg_color     = "#0d1f2d" if is_held else "#1e1e1e"
-                held_badge   = "<span style='background:#00BFFF;color:#000;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:800;margin-left:8px;'>보유중</span>" if is_held else ""
+                    sig_status   = "⚪ [관망/준비]"
+                    color_hex    = "#AAAAAA"
+                    border_style = "2px solid #666"
+                    bg_color     = "#1e1e1e"
+                    held_badge   = ""
+                    conclusion   = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
 
                 with cols[i]:
                     st.markdown(f"""
