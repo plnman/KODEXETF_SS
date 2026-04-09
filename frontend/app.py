@@ -519,6 +519,34 @@ def main():
 
                 exit_signal = bool(df_curr.get('exit_signal_T', False))
 
+                # 보유 카드 전용: 매도 모니터링 섹션
+                exit_monitor_html = ""
+                if is_held:
+                    is_bull_now_card = bool(df_curr.get('is_bull_market', False))
+                    vol_rank_val     = float(df_curr.get('vol_rank', 0.5))
+                    sma5_val  = float(df_curr.get('sma_5',  0))
+                    sma10_val = float(df_curr.get('sma_10', 0))
+                    sma20_val = float(df_curr.get('sma_20', 0))
+                    if is_bull_now_card:
+                        exit_sma_label = "SMA 5일선 (불장)"
+                        exit_sma_val   = sma5_val
+                    elif vol_rank_val < 0.3:
+                        exit_sma_label = "SMA 10일선 (저변동성)"
+                        exit_sma_val   = sma10_val
+                    else:
+                        exit_sma_label = "SMA 20일선 (고변동성)"
+                        exit_sma_val   = sma20_val
+                    ex_op    = "<" if exit_signal else "≥"
+                    ex_color = "#FF4444" if exit_signal else "#00FF88"
+                    ex_text  = "🔴 이탈 → 매도 신호" if exit_signal else "🟢 유지 중"
+                    exit_monitor_html = f"""
+                        <hr style="margin:12px 0; border:1px solid #444;">
+                        <div style="font-size:0.85rem; color:#AAA; margin-bottom:6px;">📤 매도 모니터링 ({exit_sma_label})</div>
+                        <div style="font-size:1.0rem; color:#fff;">
+                            현재가 <b>{curr_p:,.0f}원</b> {ex_op} {exit_sma_label} <b>{exit_sma_val:,.0f}원</b>
+                            &nbsp;<span style="color:{ex_color}; font-weight:800;">{ex_text}</span>
+                        </div>"""
+
                 # 상태 결정 (우선순위: 매도 > 보유유지 > 매수대기 > BUY > 관망)
                 if is_held and exit_signal:
                     sig_status   = "🔴 [매도 신호]"
@@ -592,6 +620,7 @@ def main():
                             <div style="margin-bottom:4px;">{ck(c3_pass)} <b>일봉 지배력(II)</b> &nbsp; <span style='color:#DDD;'>({'지배(양수)' if c3_pass else '미지배(음수)'})</span></div>
                             <div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style='color:#DDD;'>({float(df_curr.get('adx_14',0)):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
                         </div>
+                        {exit_monitor_html}
                         <hr style="margin:12px 0; border:1px solid #444;">
                         <div style="font-size:1.2rem; font-weight:bold;">{conclusion}</div>
                     </div>
