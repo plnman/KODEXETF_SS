@@ -591,39 +591,42 @@ def main():
                     conclusion   = f"<span style='color:#AAAAAA;'>💤 조건 {passed}/4 충족 (대기)</span>"
 
                 with cols[i]:
-                    st.markdown(f"""
-                    <div style="border:{border_style}; border-radius:12px; padding:20px; margin-bottom:15px; background-color:{bg_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                            <span><span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>{held_badge}</span>
-                            <span style="color:#FFF; font-size:0.9rem; font-weight:bold;">{rs_rank_txt}</span>
-                        </div>
-                        <div style="font-size:1.6rem; font-weight:900; color:{color_hex}; margin-bottom:4px;">
-                            {name}
-                        </div>
-                        <div style="font-size:0.95rem; color:#888; font-weight:600; margin-bottom:10px;">
-                            Ticker: {ticker_symbol}
-                        </div>
-                        <hr style="margin:12px 0; border:1px solid #444;">
-                        <div style="display:flex; justify-content:space-between; font-size:1.2rem;">
-                            <span style="color:#FFFFFF; font-weight:bold;">🎯 돌파 목표가</span>
-                            <span style="font-weight:bold; color:#ffdd44;">{target_p:,.0f}원</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; font-size:1.2rem; margin-top:6px;">
-                            <span style="color:#FFFFFF; font-weight:bold;">📉 현재가</span>
-                            <span style="color:#FFFFFF; font-weight:bold;">{curr_p:,.0f}원</span>
-                        </div>
-                        <hr style="margin:12px 0; border:1px solid #444;">
-                        <div style="font-size:1.1rem; color:#fff; line-height:1.6;">
-                            <div style="margin-bottom:4px;">{ck(c1_pass)} <b>가격 돌파</b> &nbsp; <span style='color:#DDD;'>({curr_p:,.0f} {'≥' if c1_pass else '<'} {target_p:,.0f})</span></div>
-                            <div style="margin-bottom:4px;">{ck(c2_pass)} <b>스마트머니(MFI)</b> &nbsp; <span style='color:#DDD;'>({float(df_curr.get('mfi',0)):.1f} {'≥' if c2_pass else '<'} {mfi_thr})</span></div>
-                            <div style="margin-bottom:4px;">{ck(c3_pass)} <b>일봉 지배력(II)</b> &nbsp; <span style='color:#DDD;'>({'지배(양수)' if c3_pass else '미지배(음수)'})</span></div>
-                            <div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style='color:#DDD;'>({float(df_curr.get('adx_14',0)):.1f} {'≥' if c4_pass else '<'} {adx_thr})</span></div>
-                        </div>
-                        {exit_monitor_html}
-                        <hr style="margin:12px 0; border:1px solid #444;">
-                        <div style="font-size:1.2rem; font-weight:bold;">{conclusion}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # 카드 HTML을 문자열 이어붙이기로 사전 빌드 → st.markdown에 완성본만 전달
+                    # (f-string 다중행 방식은 빈 줄 → 마크다운 파서 HTML 블록 파괴 버그 유발)
+                    _mfi_val = float(df_curr.get('mfi', 0))
+                    _adx_val = float(df_curr.get('adx_14', 0))
+                    _c1_sym  = "≥" if c1_pass else "&lt;"
+                    _c2_sym  = "≥" if c2_pass else "&lt;"
+                    _c4_sym  = "≥" if c4_pass else "&lt;"
+                    _ii_txt  = "지배(양수)" if c3_pass else "미지배(음수)"
+                    _card = (
+                        f'<div style="border:{border_style};border-radius:12px;padding:20px;margin-bottom:15px;background-color:{bg_color};box-shadow:0 4px 6px rgba(0,0,0,0.3);">'
+                        f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">'
+                        f'<span><span style="background-color:{color_hex};color:#000;padding:4px 10px;border-radius:6px;font-weight:800;font-size:0.9rem;">{sig_status}</span>{held_badge}</span>'
+                        f'<span style="color:#FFF;font-size:0.9rem;font-weight:bold;">{rs_rank_txt}</span>'
+                        f'</div>'
+                        f'<div style="font-size:1.6rem;font-weight:900;color:{color_hex};margin-bottom:4px;">{name}</div>'
+                        f'<div style="font-size:0.95rem;color:#888;font-weight:600;margin-bottom:10px;">Ticker: {ticker_symbol}</div>'
+                        f'<hr style="margin:12px 0;border:1px solid #444;">'
+                        f'<div style="display:flex;justify-content:space-between;font-size:1.2rem;">'
+                        f'<span style="color:#FFFFFF;font-weight:bold;">🎯 돌파 목표가</span>'
+                        f'<span style="font-weight:bold;color:#ffdd44;">{target_p:,.0f}원</span></div>'
+                        f'<div style="display:flex;justify-content:space-between;font-size:1.2rem;margin-top:6px;">'
+                        f'<span style="color:#FFFFFF;font-weight:bold;">📉 현재가</span>'
+                        f'<span style="color:#FFFFFF;font-weight:bold;">{curr_p:,.0f}원</span></div>'
+                        f'<hr style="margin:12px 0;border:1px solid #444;">'
+                        f'<div style="font-size:1.1rem;color:#fff;line-height:1.6;">'
+                        f'<div style="margin-bottom:4px;">{ck(c1_pass)} <b>가격 돌파</b> &nbsp; <span style="color:#DDD;">({curr_p:,.0f} {_c1_sym} {target_p:,.0f})</span></div>'
+                        f'<div style="margin-bottom:4px;">{ck(c2_pass)} <b>스마트머니(MFI)</b> &nbsp; <span style="color:#DDD;">({_mfi_val:.1f} {_c2_sym} {mfi_thr})</span></div>'
+                        f'<div style="margin-bottom:4px;">{ck(c3_pass)} <b>일봉 지배력(II)</b> &nbsp; <span style="color:#DDD;">({_ii_txt})</span></div>'
+                        f'<div style="margin-bottom:4px;">{ck(c4_pass)} <b>추세 강도(ADX)</b> &nbsp; <span style="color:#DDD;">({_adx_val:.1f} {_c4_sym} {adx_thr})</span></div>'
+                        f'</div>'
+                        f'{exit_monitor_html}'
+                        f'<hr style="margin:12px 0;border:1px solid #444;">'
+                        f'<div style="font-size:1.2rem;font-weight:bold;">{conclusion}</div>'
+                        f'</div>'
+                    )
+                    st.markdown(_card, unsafe_allow_html=True)
 
         st.caption("📡 매일 오후 4시, 시그널 발생 종목이 자동으로 '실전 성과 궤적' 탭에 기록됩니다.")
 
