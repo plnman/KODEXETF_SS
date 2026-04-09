@@ -523,10 +523,7 @@ def main():
                     st.markdown(f"""
                     <div style="border:{border_style}; border-radius:12px; padding:20px; margin-bottom:15px; background-color:{bg_color}; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                            <span style="display:flex; align-items:center;">
-                                <span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>
-                                {held_badge}
-                            </span>
+                            <span><span style="background-color:{color_hex}; color:#000; padding:4px 10px; border-radius:6px; font-weight:800; font-size:0.9rem;">{sig_status}</span>{held_badge}</span>
                             <span style="color:#FFF; font-size:0.9rem; font-weight:bold;">{rs_rank_txt}</span>
                         </div>
                         <div style="font-size:1.6rem; font-weight:900; color:{color_hex}; margin-bottom:4px;">
