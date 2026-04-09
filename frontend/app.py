@@ -21,7 +21,7 @@ from analytics.integrity_monitor import log_backtest_integrity
 # [V3.6.0] - ATR 2.5 최적화 + KODEX AI전력핵심설비(487240) 23종목 편입
 APP_VERSION = "V3.6.0"
 APP_BUILD_DATE = "2026-04-08"
-STABLE_ROI = 362.84  # 5종목 기준 (2019-01-02 ~ 2026-04-03)
+STABLE_ROI = 472.66  # 5종목 기준 (2019-01-02 ~ 2026-04-03) [V3.6.0: 23종목 편입 후 갱신]
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
 LIVE_LOOKBACK_DAYS = 500          # 실전신호 전용 최근 데이터 로딩 범위 (일) [V3.5.11: 레짐 Z-score 워밍업 280거래일 보장]
@@ -107,10 +107,20 @@ def load_backtest_from_db_cache(max_tickers: int):
             .eq('end_date', BACKTEST_END_DATE).execute()
         if not meta.data: return None
         m = meta.data[0]
-        hist = sb.table('backtest_history_cache').select('date,total_value')\
-            .eq('app_version', APP_VERSION).eq('max_tickers', max_tickers)\
-            .order('date').limit(5000).execute()
-        df_history = pd.DataFrame(hist.data) if hist.data else pd.DataFrame()
+        # Supabase 무료 플랜 max-rows=1000 우회: 1000행씩 페이지네이션
+        all_hist_data = []
+        offset = 0
+        while True:
+            batch = sb.table('backtest_history_cache').select('date,total_value')\
+                .eq('app_version', APP_VERSION).eq('max_tickers', max_tickers)\
+                .order('date').range(offset, offset + 999).execute()
+            if not batch.data:
+                break
+            all_hist_data.extend(batch.data)
+            if len(batch.data) < 1000:
+                break
+            offset += 1000
+        df_history = pd.DataFrame(all_hist_data) if all_hist_data else pd.DataFrame()
         trades = sb.table('backtest_trades_cache').select('*')\
             .eq('app_version', APP_VERSION).eq('max_tickers', max_tickers)\
             .order('entry_date').execute()
@@ -388,9 +398,9 @@ def main():
                 st.toast("✅ 백테스트 결과 DB 캐시 저장 완료")
 
     # 무결성 메트릭
-    BASELINE_RET_MAP = {3: 43.91, 5: 362.84, 10: 187.96}
+    BASELINE_RET_MAP = {3: 43.91, 5: 472.66, 10: 187.96}  # [V3.6.0] 23종목 편입 후 갱신
     actual_ret = port_res.get('cumulative_return', 0.0)
-    target_baseline = BASELINE_RET_MAP.get(max_tickers, 362.84)
+    target_baseline = BASELINE_RET_MAP.get(max_tickers, 472.66)
     diff_ret = actual_ret - target_baseline
 
     live_score = integrity_live.get('score', 0)
