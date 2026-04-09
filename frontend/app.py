@@ -536,16 +536,15 @@ def main():
                     else:
                         exit_sma_label = "SMA 20일선 (고변동성)"
                         exit_sma_val   = sma20_val
-                    ex_op    = "<" if exit_signal else "≥"
+                    ex_op    = "&lt;" if exit_signal else "≥"
                     ex_color = "#FF4444" if exit_signal else "#00FF88"
                     ex_text  = "🔴 이탈 → 매도 신호" if exit_signal else "🟢 유지 중"
-                    exit_monitor_html = f"""
-                        <hr style="margin:12px 0; border:1px solid #444;">
-                        <div style="font-size:0.85rem; color:#AAA; margin-bottom:6px;">📤 매도 모니터링 ({exit_sma_label})</div>
-                        <div style="font-size:1.0rem; color:#fff;">
-                            현재가 <b>{curr_p:,.0f}원</b> {ex_op} {exit_sma_label} <b>{exit_sma_val:,.0f}원</b>
-                            &nbsp;<span style="color:{ex_color}; font-weight:800;">{ex_text}</span>
-                        </div>"""
+                    exit_monitor_html = (
+                        f'<hr style="margin:12px 0; border:1px solid #444;">'
+                        f'<div style="font-size:0.85rem; color:#AAA; margin-bottom:6px;">📤 매도 모니터링 ({exit_sma_label})</div>'
+                        f'<div style="font-size:1.0rem; color:#fff;">현재가 <b>{curr_p:,.0f}원</b> {ex_op} {exit_sma_label} <b>{exit_sma_val:,.0f}원</b>'
+                        f'&nbsp;<span style="color:{ex_color}; font-weight:800;">{ex_text}</span></div>'
+                    )
 
                 # 상태 결정 (우선순위: 매도 > 보유유지 > 매수대기 > BUY > 관망)
                 if is_held and exit_signal:
