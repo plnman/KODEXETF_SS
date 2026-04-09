@@ -683,9 +683,10 @@ def main():
             st.dataframe(pd.DataFrame(y_data), use_container_width=True, hide_index=True)
             
             st.divider()
-            st.subheader("📚 백테스트 상세 매매 일지 (Trade Logs)")
             trades_df = port_res['trades_df']
-            
+            trade_count = len(trades_df) if not trades_df.empty else 0
+            st.subheader(f"📚 백테스트 상세 매매 일지 (Trade Logs) — 총 {trade_count}건")
+
             if not trades_df.empty:
                 # 콤마 및 포맷팅 처리
                 styled_trades = trades_df.copy()
