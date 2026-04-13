@@ -22,7 +22,7 @@ from config.etf_universe import ETFS_CLEAN
 # [V3.8.0] - 15종목 신규 유니버스 (AI/방산/로봇) + Single Source of Truth 설계 전환
 APP_VERSION = "V3.8.0"
 APP_BUILD_DATE = "2026-04-13"
-STABLE_ROI = 472.66  # 5종목 기준 [V3.8.0: 종목 재편 후 백테스트 재실행 필요 — 임시값]
+STABLE_ROI = 200.82  # 5종목 기준 [V3.8.0 확정: 15종목 신규 유니버스 2019-01-02~2026-04-03]
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
 LIVE_LOOKBACK_DAYS = 500          # 실전신호 전용 최근 데이터 로딩 범위 (일) [V3.5.11: 레짐 Z-score 워밍업 280거래일 보장]
@@ -393,7 +393,7 @@ def main():
                 st.toast("✅ 백테스트 결과 DB 캐시 저장 완료")
 
     # 무결성 메트릭
-    BASELINE_RET_MAP = {3: 43.91, 5: 472.66, 10: 187.96}  # [V3.8.0] 15종목 재편 후 백테스트 재실행 필요 — 임시값
+    BASELINE_RET_MAP = {3: 181.51, 5: 200.82, 10: 399.13}  # [V3.8.0 확정] 15종목 신규 유니버스
     actual_ret = port_res.get('cumulative_return', 0.0)
     target_baseline = BASELINE_RET_MAP.get(max_tickers, 472.66)
     diff_ret = actual_ret - target_baseline
