@@ -28,17 +28,17 @@ ETF_UNIVERSE = {
     "379810.KS":  {"name": "KODEX 미국나스닥100",           "k": 0.5, "mfi": 50, "adx_threshold": 15},
     "453810.KS":  {"name": "KODEX 인도Nifty50",            "k": 0.6, "mfi": 50, "adx_threshold": 15},
 
-    # ── AI / 테크 메가트렌드 ───────────────────────────────────────────────────
-    "485540.KS":  {"name": "KODEX 미국AI테크TOP10",        "k": 0.3, "mfi": 55, "adx_threshold": 20},
-    "487230.KS":  {"name": "KODEX 미국AI전력핵심인프라",    "k": 0.3, "mfi": 55, "adx_threshold": 20},
-    "487240.KS":  {"name": "KODEX AI전력핵심설비",          "k": 0.3, "mfi": 55, "adx_threshold": 20},
-    "0151S0":     {"name": "KODEX 미국AI반도체TOP3플러스",  "k": 0.3, "mfi": 55, "adx_threshold": 20},
-    "0173Y0":     {"name": "KODEX 미국AI광통신네트워크",    "k": 0.3, "mfi": 55, "adx_threshold": 20},
+    # ── AI / 테크 메가트렌드 (신규 — 공통 파라미터 k=0.5, mfi=50, adx=15) ──────
+    "485540.KS":  {"name": "KODEX 미국AI테크TOP10",        "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "487230.KS":  {"name": "KODEX 미국AI전력핵심인프라",    "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "487240.KS":  {"name": "KODEX AI전력핵심설비",          "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "0151S0":     {"name": "KODEX 미국AI반도체TOP3플러스",  "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "0173Y0":     {"name": "KODEX 미국AI광통신네트워크",    "k": 0.5, "mfi": 50, "adx_threshold": 15},
 
-    # ── 방산 / 우주 / 로봇 ────────────────────────────────────────────────────
-    "0167Z0":     {"name": "KODEX 미국우주항공",            "k": 0.4, "mfi": 55, "adx_threshold": 20},
-    "0038A0":     {"name": "KODEX 미국휴머노이드로봇",      "k": 0.3, "mfi": 55, "adx_threshold": 20},
-    "0080G0":     {"name": "KODEX 방산TOP10",              "k": 0.3, "mfi": 60, "adx_threshold": 20},
+    # ── 방산 / 우주 / 로봇 (신규 — 공통 파라미터 k=0.5, mfi=50, adx=15) ──────
+    "0167Z0":     {"name": "KODEX 미국우주항공",            "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "0038A0":     {"name": "KODEX 미국휴머노이드로봇",      "k": 0.5, "mfi": 50, "adx_threshold": 15},
+    "0080G0":     {"name": "KODEX 방산TOP10",              "k": 0.5, "mfi": 50, "adx_threshold": 15},
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
