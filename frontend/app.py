@@ -440,7 +440,7 @@ def main():
         ]
         rs_ranked = sorted(valid_signals, key=lambda x: x[1], reverse=True)
         rs_rank_map = {name: i + 1 for i, (name, _) in enumerate(rs_ranked)}
-        top5_names = [name for name, _ in rs_ranked[:5]]
+        top5_names = [name for name, _ in rs_ranked[:max_tickers]]  # max_tickers 연동
 
         # 2) 현재 보유 종목 조회 (live_trades DB)
         held_names = set()
@@ -483,7 +483,7 @@ def main():
         NAME_TO_TICKER = {v: k for k, v in ETFS_CLEAN.items()}  # [V3.8.0] .KS 제거된 clean code 사용
 
         # 범례
-        st.caption("🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS + 관련 종목 표시")
+        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP {max_tickers} RS + 관련 종목 표시")
 
         cols_per_row = 3
         def ck(b): return "✅" if b else "❌"
