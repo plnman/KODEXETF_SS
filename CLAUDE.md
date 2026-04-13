@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 - KODEX ETF 기반 IRP 계좌 실전 매매 신호 시스템
-- Streamlit 단일 페이지 앱 (V3.8.0)
+- Streamlit 단일 페이지 앱 (V3.8.1)
 - 데이터: FinanceDataReader (FDR) — Yahoo Finance 영구 퇴출
 - DB: Supabase (PostgreSQL)
 - 배포: Streamlit Community Cloud
@@ -31,7 +31,7 @@ https://kodexetfss-9civ4tvzx4qymaewzpxjyu.streamlit.app/
 
 ### 로컬 확인 체크리스트
 - [ ] Tab 1: AI 실전 시그널 보드 — 5개 카드 정상 표시
-- [ ] Tab 2: 백테스팅 결과 — 누적수익률 292.60% (5종목 기준, V3.8.0 확정)
+- [ ] Tab 2: 백테스팅 결과 — 누적수익률 513.34% (10종목 기준, V3.8.1 확정)
 - [ ] Tab 3: 알고리즘 무결성 진단 — TICKER_PARAMS 15종목 전부 표시
 - [ ] Tab 4: 실전 성과 궤적 — DB 연결 오류 없음
 - [ ] 무결성 점수 100%, 데이터 1781 rows, 수익률 정밀 오차 ±0.00%
@@ -55,7 +55,7 @@ https://kodexetfss-9civ4tvzx4qymaewzpxjyu.streamlit.app/
 
 | 항목 | 값 |
 |---|---|
-| 기본 운용 모드 | 5종목 균형 투자 (index=1) |
+| 기본 운용 모드 | 10종목 전방위 투자 (index=2) |
 | 유니버스 | 15종목 (국내 4 + 글로벌 3 + AI/테크 5 + 방산/우주/로봇 3) [V3.8.0] |
 | 백테스트 기간 | 2019-01-02 ~ 2026-04-04 (1781 rows) |
 | 초기 자본 | 5,000만원 |

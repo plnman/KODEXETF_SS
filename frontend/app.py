@@ -19,8 +19,8 @@ from data_collector.daily_scraper import calculate_mfi, calculate_intraday_inten
 from analytics.integrity_monitor import log_backtest_integrity
 from config.etf_universe import ETFS_CLEAN
 
-# [V3.8.0] - 15종목 신규 유니버스 (AI/방산/로봇) + Single Source of Truth 설계 전환
-APP_VERSION = "V3.8.0"
+# [V3.8.1] - 버그픽스: Ticker .KS 노출, 카드수 max_tickers 연동, 디폴트 10종목
+APP_VERSION = "V3.8.1"
 APP_BUILD_DATE = "2026-04-13"
 STABLE_ROI = 292.60  # 5종목 기준 [V3.8.0 확정: 신규종목 공통 파라미터 k=0.5/mfi=50/adx=15 적용]
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
