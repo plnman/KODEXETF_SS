@@ -480,7 +480,7 @@ def main():
         )
         card_list = top5_names + [n for _, n in extra_names]  # 최대 10장
 
-        NAME_TO_TICKER = {v: k for k, v in TARGET_ETFS.items()}
+        NAME_TO_TICKER = {v: k for k, v in ETFS_CLEAN.items()}  # [V3.8.0] .KS 제거된 clean code 사용
 
         # 범례
         st.caption("🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS + 관련 종목 표시")
