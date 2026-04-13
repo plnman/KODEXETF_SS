@@ -13,31 +13,29 @@ from data_collector.supabase_client import get_supabase_client
 
 # KODEX 기반 IRP 거래 가능 핵심 10개 섹터 및 지수 ETF
 TARGET_ETFS = {
-    "069500.KS": "KODEX 200", 
-    "226490.KS": "KODEX 코스닥150",
+    "069500.KS": "KODEX 200",
+    "229200.KS": "KODEX 코스닥150",       # [V3.7.0] 226490→229200 코드 정정
     "091160.KS": "KODEX 반도체",
     "091170.KS": "KODEX 은행",
     "091180.KS": "KODEX 자동차",
     "305720.KS": "KODEX 2차전지산업",
     "117700.KS": "KODEX 건설",
-    "091220.KS": "KODEX 금융",
-    "102970.KS": "KODEX 기계장비",
+    "102960.KS": "KODEX 기계장비",        # [V3.7.0] 102970→102960 코드 정정
     "117680.KS": "KODEX 철강",
-    # [NEW] 글로벌 / 메가트렌드 (V3.5.0)
-    "379800.KS": "KODEX 미국S&P500TR",
-    "367380.KS": "KODEX 미국나스닥100TR",
-    "314250.KS": "KODEX 미국FANG플러스(H)",
-    "315270.KS": "KODEX 미국산업재(합성)",
-    "251350.KS": "KODEX 선진국MSCI World",
-    "475380.KS": "KODEX 글로벌AI인프라",
-    "453850.KS": "KODEX 인도Nifty50",
-    "465610.KS": "KODEX 미국반도체MV",
-    "461580.KS": "KODEX 미국배당프리미엄액티브",
+    # [UPDATED] 글로벌 / 메가트렌드 (V3.5.0 → V3.7.0 정비)
+    "379800.KS": "KODEX 미국S&P500",      # [V3.7.0] 이름 정정 (TR 제거)
+    "379810.KS": "KODEX 미국나스닥100TR", # [V3.7.0] 367380→379810 코드 정정
+    "314250.KS": "KODEX 미국빅테크10(H)", # [V3.7.0] FANG플러스→빅테크10 이름 정정
+    "251350.KS": "KODEX MSCI선진국",      # [V3.7.0] 선진국MSCI World→MSCI선진국 이름 정정
+    "453810.KS": "KODEX 인도Nifty50",    # [V3.7.0] 453850→453810 코드 정정
     "0080G0": "KODEX K방산TOP10",
     "244580.KS": "KODEX 바이오",
     "315930.KS": "KODEX Top5PlusTR",
-    # [NEW] AI 인프라 확장 편입 (V3.6.0)
+    # [UPDATED] AI 인프라 (V3.6.0 → V3.7.0)
     "487240.KS": "KODEX AI전력핵심설비",
+    # [NEW] V3.7.0 신규 편입
+    "0167Z0": "KODEX 미국우주항공",
+    "487230.KS": "KODEX 미국AI전력핵심인프라",
 }
 
 def verify_tickers(etfs: dict = None) -> list[str]:
@@ -61,7 +59,7 @@ def verify_tickers(etfs: dict = None) -> list[str]:
         issues.append(f"[FDR리스팅 로드실패] {e} — 이름 대조 건너뜀")
 
     # 0080G0 같은 FDR 전용 코드는 리스팅 대조 제외
-    SKIP_LISTING_CHECK = {"0080G0"}
+    SKIP_LISTING_CHECK = {"0080G0", "0167Z0"}  # FDR 전용 코드 (리스팅 대조 제외)
 
     for raw_code, expected_name in etfs.items():
         clean = raw_code.replace('.KS', '')

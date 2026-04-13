@@ -12,24 +12,22 @@ TICKER_PARAMS = {
     "KODEX 자동차": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
     "KODEX 2차전지산업": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
     "KODEX 건설": {'k': 0.4, 'mfi': 60, 'adx_threshold': 15},
-    "KODEX 금융": {'k': 0.5, 'mfi': 60, 'adx_threshold': 20},
     "KODEX 기계장비": {'k': 0.7, 'mfi': 65, 'adx_threshold': 15},
     "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
-    # [NEW] 글로벌 / 메가트렌드 편입 (V3.5.0)
-    "KODEX 미국S&P500TR": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
+    # [UPDATED] 글로벌 / 메가트렌드 (V3.5.0 → V3.7.0 정비)
+    "KODEX 미국S&P500": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},       # [V3.7.0] 이름 정정
     "KODEX 미국나스닥100TR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 미국FANG플러스(H)": {'k': 0.4, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 미국산업재(합성)": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 선진국MSCI World": {'k': 0.6, 'mfi': 40, 'adx_threshold': 15},
-    "KODEX 글로벌AI인프라": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
+    "KODEX 미국빅테크10(H)": {'k': 0.4, 'mfi': 60, 'adx_threshold': 20},  # [V3.7.0] 이름 정정
+    "KODEX MSCI선진국": {'k': 0.6, 'mfi': 40, 'adx_threshold': 15},        # [V3.7.0] 이름 정정
     "KODEX 인도Nifty50": {'k': 0.6, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 미국반도체MV": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 미국배당프리미엄액티브": {'k': 0.8, 'mfi': 40, 'adx_threshold': 15},
     "KODEX K방산TOP10": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
     "KODEX 바이오": {'k': 0.2, 'mfi': 60, 'adx_threshold': 15},
     "KODEX Top5PlusTR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
-    # [NEW] AI 인프라 확장 편입 (V3.6.0)
+    # [UPDATED] AI 인프라 (V3.6.0 → V3.7.0)
     "KODEX AI전력핵심설비": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
+    # [NEW] V3.7.0 신규 편입
+    "KODEX 미국우주항공": {'k': 0.4, 'mfi': 55, 'adx_threshold': 20},
+    "KODEX 미국AI전력핵심인프라": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
 }
 
 # 공통 하드 스탑 방벽 (V3.6.0: 백테스트 최적화 결과 2.5 채택 — MDD -30.9%→-24.5%, 수익 +109%p)
