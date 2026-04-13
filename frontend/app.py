@@ -506,7 +506,7 @@ def main():
                 params  = TICKER_PARAMS.get(name, {'k': 0.5, 'mfi': 60, 'adx_threshold': 20})
                 mfi_thr = params['mfi']
                 adx_thr = params['adx_threshold']
-                c1_pass = curr_p >= target_p
+                c1_pass = curr_p > target_p   # strategy.py 백테스팅과 동일: close > target_break_price
                 c2_pass = float(df_curr.get('mfi', 0)) > mfi_thr
                 c3_pass = float(df_curr.get('intraday_intensity', 0)) > 0
                 c4_pass = float(df_curr.get('adx_14', 0)) > adx_thr
@@ -570,7 +570,7 @@ def main():
                     bg_color     = "#1e1e1e"
                     held_badge   = ""
                     conclusion   = "<span style='color:#00FF00;'>🚀 내일 시가 매수 집행</span>"
-                elif curr_p >= target_p * 0.98:
+                elif passed == 3:   # 정확히 1개 미달일 때만 🟡 (passed 기준, 가격 근접도와 무관)
                     sig_status   = "🟡 [매수 대기]"
                     color_hex    = "#FFA500"
                     border_style = "2px solid #666"
