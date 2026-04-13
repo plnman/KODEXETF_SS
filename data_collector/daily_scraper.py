@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import FinanceDataReader as fdr
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from data_collector.supabase_client import get_supabase_client
 
