@@ -40,6 +40,54 @@ TARGET_ETFS = {
     "487240.KS": "KODEX AI전력핵심설비",
 }
 
+def verify_tickers(etfs: dict = None) -> list[str]:
+    """
+    [티커 무결성 검증기] 신규 ETF 편입 시 또는 매일 자동 실행.
+    FDR ETF 리스팅과 대조해 이름 불일치·데이터 없음을 경고로 반환.
+
+    반환: 이슈 문자열 리스트 (빈 리스트 = 정상)
+    """
+    if etfs is None:
+        etfs = TARGET_ETFS
+
+    issues = []
+
+    # FDR ETF 리스팅 로드 (실패해도 부분 검증 진행)
+    fdr_map = {}
+    try:
+        listing = fdr.StockListing('ETF/KR')[['Symbol', 'Name']]
+        fdr_map = dict(zip(listing['Symbol'], listing['Name']))
+    except Exception as e:
+        issues.append(f"[FDR리스팅 로드실패] {e} — 이름 대조 건너뜀")
+
+    # 0080G0 같은 FDR 전용 코드는 리스팅 대조 제외
+    SKIP_LISTING_CHECK = {"0080G0"}
+
+    for raw_code, expected_name in etfs.items():
+        clean = raw_code.replace('.KS', '')
+
+        # 1. FDR 리스팅 이름 대조
+        if clean not in SKIP_LISTING_CHECK and fdr_map:
+            actual_name = fdr_map.get(clean)
+            if actual_name is None:
+                issues.append(f"[리스팅없음] {raw_code} '{expected_name}' — FDR ETF 목록에 코드 없음")
+            elif actual_name != expected_name:
+                issues.append(
+                    f"[이름불일치] {raw_code}: 등록='{expected_name}' / FDR='{actual_name}'"
+                )
+
+        # 2. 실제 데이터 로드 가능 여부 (최근 5거래일)
+        try:
+            start = (datetime.now() - timedelta(days=10)).strftime('%Y-%m-%d')
+            test_df = fdr.DataReader(clean, start=start)
+            if test_df is None or (hasattr(test_df, 'empty') and test_df.empty):
+                issues.append(f"[데이터없음] {raw_code} '{expected_name}' — 최근 데이터 로드 실패")
+        except Exception as e:
+            issues.append(f"[로드오류] {raw_code} '{expected_name}' — {e}")
+
+    return issues
+
+
 def extract_series(df, col_name):
     """MultiIndex DataFrame에서 단일 Series를 안전하게 추출 (V3.3.3 핵심 병기)"""
     if col_name in df.columns:

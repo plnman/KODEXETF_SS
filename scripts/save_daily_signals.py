@@ -37,6 +37,7 @@ from data_collector.daily_scraper import (
     calculate_mfi,
     calculate_intraday_intensity,
     TARGET_ETFS,
+    verify_tickers,
 )
 from engine.strategy import build_signals_and_targets
 
@@ -267,11 +268,25 @@ def _calc_cash() -> float:
 
 
 # ── 메인 ──────────────────────────────────────────────────────────────────────
+def task0_verify_tickers():
+    """[TASK 0] 티커 무결성 검증 — 이름 불일치·데이터 없음 즉시 경고"""
+    print(f"\n[TASK 0] 티커 무결성 검증 — {len(TARGET_ETFS)}종목")
+    issues = verify_tickers(TARGET_ETFS)
+    if not issues:
+        print("  모든 티커 정상 ✅")
+    else:
+        print(f"  ⚠️  경고 {len(issues)}건 발견 — 즉시 확인 필요:")
+        for msg in issues:
+            print(f"    {msg}")
+    return issues
+
+
 def main():
     print("=" * 60)
     print(f" KODEX IRP 실전 신호/매매 자동 기록 — KST {now_kst.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 60)
 
+    task0_verify_tickers()
     all_today_signals = task1_save_signals()
     task2_record_executions()
     task3_update_portfolio(all_today_signals)

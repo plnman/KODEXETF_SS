@@ -15,7 +15,7 @@ importlib.reload(strategy)
 from engine.strategy import build_signals_and_targets, get_market_regime, TICKER_PARAMS
 from analytics.portfolio_backtester import run_portfolio_backtest
 from analytics.backtester import run_vectorized_backtest
-from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity
+from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity, verify_tickers
 from analytics.integrity_monitor import log_backtest_integrity
 
 # [V3.6.0] - ATR 2.5 최적화 + KODEX AI전력핵심설비(487240) 23종목 편입
@@ -369,6 +369,16 @@ def main():
     # -------------------------------------------------------------------------------------
 
     
+    # [V3.6.1] 티커 무결성 경고 (이름 불일치 시 최상단 빨간 배너)
+    @st.cache_data(ttl=3600, show_spinner=False)
+    def _cached_verify_tickers():
+        return verify_tickers(TARGET_ETFS)
+    ticker_issues = _cached_verify_tickers()
+    if ticker_issues:
+        with st.expander(f"🚨 티커 무결성 경고 {len(ticker_issues)}건 — 즉시 확인 필요", expanded=True):
+            for msg in ticker_issues:
+                st.error(msg)
+
     # [v3.3.3] 무결성 배지 (Integrity Status Badge) 최상단 배치
     c_badge1, c_badge2 = st.columns([1, 4])
     with c_badge1:
