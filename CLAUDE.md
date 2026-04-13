@@ -2,7 +2,7 @@
 
 ## 프로젝트 개요
 - KODEX ETF 기반 IRP 계좌 실전 매매 신호 시스템
-- Streamlit 단일 페이지 앱 (V3.5.6+)
+- Streamlit 단일 페이지 앱 (V3.8.0)
 - 데이터: FinanceDataReader (FDR) — Yahoo Finance 영구 퇴출
 - DB: Supabase (PostgreSQL)
 - 배포: Streamlit Community Cloud
@@ -56,7 +56,7 @@ https://kodexetfss-9civ4tvzx4qymaewzpxjyu.streamlit.app/
 | 항목 | 값 |
 |---|---|
 | 기본 운용 모드 | 5종목 균형 투자 (index=1) |
-| 유니버스 | 20종목 (국내 13 + 글로벌 7) [V3.7.0] |
+| 유니버스 | 15종목 (국내 4 + 글로벌 3 + AI/테크 5 + 방산/우주/로봇 3) [V3.8.0] |
 | 백테스트 기간 | 2019-01-02 ~ 2026-04-04 (1781 rows) |
 | 초기 자본 | 5,000만원 |
 | turbo_discount (K200) | 0.5 |
@@ -65,8 +65,8 @@ https://kodexetfss-9civ4tvzx4qymaewzpxjyu.streamlit.app/
 
 ### BASELINE_RET_MAP (무결성 검증 기준값)
 ```python
-# [V3.7.0] 20종목 재편 후 — STABLE_ROI 재검증 필요 (현재 임시값)
-{3: 43.91, 5: 93.89, 10: 187.96}
+# [V3.8.0] 15종목 재편 후 — 백테스트 재실행 필요 (현재 임시값)
+{3: 43.91, 5: 472.66, 10: 187.96}
 ```
 
 ---
@@ -90,6 +90,8 @@ https://kodexetfss-9civ4tvzx4qymaewzpxjyu.streamlit.app/
 
 ```
 app/
+├── config/
+│   └── etf_universe.py      # [V3.8.0] Single Source of Truth — 종목 추가/변경은 이 파일만!
 ├── frontend/app.py          # Streamlit 메인 앱
 ├── engine/strategy.py       # 신호 생성 엔진 (NEVER TOUCH)
 ├── analytics/
@@ -102,6 +104,16 @@ app/
 ├── run_local.sh             # 로컬 서버 실행 스크립트
 └── deploy.sh                # Git 배포 스크립트
 ```
+
+## [V3.8.0] Single Source of Truth 설계
+
+종목 추가/제거 방법:
+1. `config/etf_universe.py`의 `ETF_UNIVERSE` 딕셔너리에 항목 추가/삭제
+2. 저장 후 끝 — daily_scraper.py, strategy.py, app.py 수정 불필요
+
+특수 코드 (SKIP_LISTING_CHECK 자동 포함):
+- 영숫자 혼합 코드 (예: 0080G0, 0167Z0, 0151S0, 0173Y0, 0038A0)는 `.KS` 없이 입력
+- isdigit() 로직으로 자동 감지하여 FDR 리스팅 대조 제외
 
 ---
 

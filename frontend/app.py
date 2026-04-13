@@ -17,11 +17,12 @@ from analytics.portfolio_backtester import run_portfolio_backtest
 from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity, verify_tickers
 from analytics.integrity_monitor import log_backtest_integrity
+from config.etf_universe import ETFS_CLEAN
 
-# [V3.6.0] - ATR 2.5 최적화 + KODEX AI전력핵심설비(487240) 23종목 편입
-APP_VERSION = "V3.7.0"
-APP_BUILD_DATE = "2026-04-08"
-STABLE_ROI = 472.66  # 5종목 기준 [V3.7.0: 20종목 재편 후 백테스트 재실행 필요 — 임시값]
+# [V3.8.0] - 15종목 신규 유니버스 (AI/방산/로봇) + Single Source of Truth 설계 전환
+APP_VERSION = "V3.8.0"
+APP_BUILD_DATE = "2026-04-13"
+STABLE_ROI = 472.66  # 5종목 기준 [V3.8.0: 종목 재편 후 백테스트 재실행 필요 — 임시값]
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
 LIVE_LOOKBACK_DAYS = 500          # 실전신호 전용 최근 데이터 로딩 범위 (일) [V3.5.11: 레짐 Z-score 워밍업 280거래일 보장]
@@ -153,17 +154,7 @@ def load_backtest_from_db_cache(max_tickers: int):
 def load_live_signals_only():
     """[V3.5.7] 실전신호 전용 경량 로더 - 최근 400일만 로드하여 빠른 신호 생성"""
     import FinanceDataReader as fdr
-    ETFS = {
-        "069500":"KODEX 200","229200":"KODEX 코스닥150","091160":"KODEX 반도체",  # [V3.7.0] 229200 정정
-        "091170":"KODEX 은행","091180":"KODEX 자동차","305720":"KODEX 2차전지산업",
-        "117700":"KODEX 건설","102960":"KODEX 기계장비","117680":"KODEX 철강",    # [V3.7.0] 102960 정정
-        "379800":"KODEX 미국S&P500","379810":"KODEX 미국나스닥100",             # [V3.7.0] 이름/코드 정정
-        "314250":"KODEX 미국빅테크10(H)","251350":"KODEX MSCI선진국",             # [V3.7.0] 이름 정정
-        "453810":"KODEX 인도Nifty50",                                             # [V3.7.0] 453810 정정
-        "0080G0":"KODEX K방산TOP10","244580":"KODEX 바이오","315930":"KODEX Top5PlusTR",
-        "487240":"KODEX AI전력핵심설비",                                          # [V3.6.0]
-        "0167Z0":"KODEX 미국우주항공","487230":"KODEX 미국AI전력핵심인프라"       # [V3.7.0] 신규
-    }
+    ETFS = ETFS_CLEAN  # [V3.8.0] Single Source of Truth: config/etf_universe.py
     start_date = (datetime.now() - timedelta(days=LIVE_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
 
     def _clean(df):
@@ -194,7 +185,7 @@ def load_live_signals_only():
         all_signals[name] = sig
 
     is_bull_now = bool(regime.iloc[-1]) if not regime.empty else False
-    integrity = {"score": 100, "detail": f"실전신호 최근 {LIVE_LOOKBACK_DAYS}일 로드 ({len(all_signals)}/20 종목)"}
+    integrity = {"score": 100, "detail": f"실전신호 최근 {LIVE_LOOKBACK_DAYS}일 로드 ({len(all_signals)}/{len(ETFS_CLEAN)} 종목)"}
     return all_signals, is_bull_now, k200_sig, integrity  # [V3.5.12] k200_sig 반환 (adx_14/sigma_20/sigma_avg 포함)
 
 
@@ -242,18 +233,7 @@ def get_single_ticker_data(tk, name, start_date, end_date):
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_and_process_data_v3_5_2_MASTER_FINAL(is_backtest=False):
     import FinanceDataReader as fdr
-    TARGET_ETFS = {
-        "069500.KS": "KODEX 200", "229200.KS": "KODEX 코스닥150",                  # [V3.7.0] 229200 정정
-        "379800.KS": "KODEX 미국S&P500", "379810.KS": "KODEX 미국나스닥100",     # [V3.7.0] 이름/코드 정정
-        "314250.KS": "KODEX 미국빅테크10(H)", "091160.KS": "KODEX 반도체",         # [V3.7.0] 이름 정정
-        "305720.KS": "KODEX 2차전지산업", "453810.KS": "KODEX 인도Nifty50",        # [V3.7.0] 453810 정정
-        "244580.KS": "KODEX 바이오", "0080G0": "KODEX K방산TOP10",
-        "315930.KS": "KODEX Top5PlusTR", "091170.KS": "KODEX 은행", "091180.KS": "KODEX 자동차",
-        "117700.KS": "KODEX 건설", "102960.KS": "KODEX 기계장비", "117680.KS": "KODEX 철강",  # [V3.7.0] 102960 정정
-        "251350.KS": "KODEX MSCI선진국",                                            # [V3.7.0] 이름 정정
-        "487240.KS": "KODEX AI전력핵심설비",                                        # [V3.6.0]
-        "0167Z0": "KODEX 미국우주항공", "487230.KS": "KODEX 미국AI전력핵심인프라"  # [V3.7.0] 신규
-    }
+    # [V3.8.0] Single Source of Truth: config/etf_universe.py (모듈 수준 TARGET_ETFS 사용)
     
     end_date = "2026-04-04" if is_backtest else None
     start_date = "2019-01-01"
@@ -399,7 +379,7 @@ def main():
         all_signals, is_bull_now, k200_raw, integrity_live = load_live_signals_only()
 
     with st.expander("🛠️ 데이터 큐레이션 실시간 로그 (KRX Audit)"):
-        st.write(f"**실전신호 로드:** 최근 {LIVE_LOOKBACK_DAYS}일 | {len(all_signals)}/22 종목 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"**실전신호 로드:** 최근 {LIVE_LOOKBACK_DAYS}일 | {len(all_signals)}/{len(ETFS_CLEAN)} 종목 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         st.write(integrity_live.get('detail', ''))
 
     # [V3.5.7] Track 2: 백테스트 결과 - DB 캐시 우선, 캐시 미스 시 최초 1회 계산
@@ -413,7 +393,7 @@ def main():
                 st.toast("✅ 백테스트 결과 DB 캐시 저장 완료")
 
     # 무결성 메트릭
-    BASELINE_RET_MAP = {3: 43.91, 5: 472.66, 10: 187.96}  # [V3.7.0] 20종목 재편 후 백테스트 재실행 필요 — 임시값
+    BASELINE_RET_MAP = {3: 43.91, 5: 472.66, 10: 187.96}  # [V3.8.0] 15종목 재편 후 백테스트 재실행 필요 — 임시값
     actual_ret = port_res.get('cumulative_return', 0.0)
     target_baseline = BASELINE_RET_MAP.get(max_tickers, 472.66)
     diff_ret = actual_ret - target_baseline

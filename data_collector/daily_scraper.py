@@ -11,32 +11,8 @@ from data_collector.supabase_client import get_supabase_client
 # !!! 지표 계산 로직(MFI, II) 절대 수정 금지 - 알고리즘 무결성 보호용 성역 !!!
 # -------------------------------------------------------------------------------------
 
-# KODEX 기반 IRP 거래 가능 핵심 10개 섹터 및 지수 ETF
-TARGET_ETFS = {
-    "069500.KS": "KODEX 200",
-    "229200.KS": "KODEX 코스닥150",       # [V3.7.0] 226490→229200 코드 정정
-    "091160.KS": "KODEX 반도체",
-    "091170.KS": "KODEX 은행",
-    "091180.KS": "KODEX 자동차",
-    "305720.KS": "KODEX 2차전지산업",
-    "117700.KS": "KODEX 건설",
-    "102960.KS": "KODEX 기계장비",        # [V3.7.0] 102970→102960 코드 정정
-    "117680.KS": "KODEX 철강",
-    # [UPDATED] 글로벌 / 메가트렌드 (V3.5.0 → V3.7.0 정비)
-    "379800.KS": "KODEX 미국S&P500",      # [V3.7.0] 이름 정정 (TR 제거)
-    "379810.KS": "KODEX 미국나스닥100",    # [V3.7.0] 367380→379810 코드 정정 + 이름 정정
-    "314250.KS": "KODEX 미국빅테크10(H)", # [V3.7.0] FANG플러스→빅테크10 이름 정정
-    "251350.KS": "KODEX MSCI선진국",      # [V3.7.0] 선진국MSCI World→MSCI선진국 이름 정정
-    "453810.KS": "KODEX 인도Nifty50",    # [V3.7.0] 453850→453810 코드 정정
-    "0080G0": "KODEX K방산TOP10",
-    "244580.KS": "KODEX 바이오",
-    "315930.KS": "KODEX Top5PlusTR",
-    # [UPDATED] AI 인프라 (V3.6.0 → V3.7.0)
-    "487240.KS": "KODEX AI전력핵심설비",
-    # [NEW] V3.7.0 신규 편입
-    "0167Z0": "KODEX 미국우주항공",
-    "487230.KS": "KODEX 미국AI전력핵심인프라",
-}
+# [V3.8.0] Single Source of Truth: 종목 추가/변경은 config/etf_universe.py 만 수정
+from config.etf_universe import TARGET_ETFS, SKIP_LISTING_CHECK  # noqa: F401
 
 def verify_tickers(etfs: dict = None) -> list[str]:
     """
@@ -57,9 +33,6 @@ def verify_tickers(etfs: dict = None) -> list[str]:
         fdr_map = dict(zip(listing['Symbol'], listing['Name']))
     except Exception as e:
         issues.append(f"[FDR리스팅 로드실패] {e} — 이름 대조 건너뜀")
-
-    # 0080G0 같은 FDR 전용 코드는 리스팅 대조 제외
-    SKIP_LISTING_CHECK = {"0080G0", "0167Z0"}  # FDR 전용 코드 (리스팅 대조 제외)
 
     for raw_code, expected_name in etfs.items():
         clean = raw_code.replace('.KS', '')

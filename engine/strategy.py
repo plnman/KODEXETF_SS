@@ -1,36 +1,9 @@
 import pandas as pd
 import numpy as np
 
-# -------------------------------------------------------------------------------------
-# [V3.6.0] ATR_MULTIPLIER 3.0→2.5 최적화 + KODEX AI전력핵심설비(487240) 편입
-# -------------------------------------------------------------------------------------
-TICKER_PARAMS = {
-    "KODEX 200": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},
-    "KODEX 코스닥150": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 반도체": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 은행": {'k': 0.7, 'mfi': 65, 'adx_threshold': 20},
-    "KODEX 자동차": {'k': 0.2, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 2차전지산업": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 건설": {'k': 0.4, 'mfi': 60, 'adx_threshold': 15},
-    "KODEX 기계장비": {'k': 0.7, 'mfi': 65, 'adx_threshold': 15},
-    "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
-    # [UPDATED] 글로벌 / 메가트렌드 (V3.5.0 → V3.7.0 정비)
-    "KODEX 미국S&P500": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},       # [V3.7.0] 이름 정정
-    "KODEX 미국나스닥100": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX 미국빅테크10(H)": {'k': 0.4, 'mfi': 60, 'adx_threshold': 20},  # [V3.7.0] 이름 정정
-    "KODEX MSCI선진국": {'k': 0.6, 'mfi': 40, 'adx_threshold': 15},        # [V3.7.0] 이름 정정
-    "KODEX 인도Nifty50": {'k': 0.6, 'mfi': 50, 'adx_threshold': 15},
-    "KODEX K방산TOP10": {'k': 0.3, 'mfi': 60, 'adx_threshold': 20},
-    "KODEX 바이오": {'k': 0.2, 'mfi': 60, 'adx_threshold': 15},
-    "KODEX Top5PlusTR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
-    # [UPDATED] AI 인프라 (V3.6.0 → V3.7.0)
-    "KODEX AI전력핵심설비": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
-    # [NEW] V3.7.0 신규 편입
-    "KODEX 미국우주항공": {'k': 0.4, 'mfi': 55, 'adx_threshold': 20},
-    "KODEX 미국AI전력핵심인프라": {'k': 0.3, 'mfi': 55, 'adx_threshold': 20},
-}
+from config.etf_universe import TICKER_PARAMS  # noqa: F401 — Single Source of Truth (config/etf_universe.py)
 
-# 공통 하드 스탑 방벽 (V3.6.0: 백테스트 최적화 결과 2.5 채택 — MDD -30.9%→-24.5%, 수익 +109%p)
+# 공통 하드 스탑 방벽 (V3.6.0 최적화 결과 2.5 채택 — MDD -30.9%→-24.5%, 수익 +109%p)
 ATR_MULTIPLIER = 2.5
 
 def calculate_dynamic_k(sigma_20: float, sigma_avg: float, k_base: float) -> float:
