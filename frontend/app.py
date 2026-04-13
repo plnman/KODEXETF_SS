@@ -157,7 +157,7 @@ def load_live_signals_only():
         "069500":"KODEX 200","229200":"KODEX 코스닥150","091160":"KODEX 반도체",  # [V3.7.0] 229200 정정
         "091170":"KODEX 은행","091180":"KODEX 자동차","305720":"KODEX 2차전지산업",
         "117700":"KODEX 건설","102960":"KODEX 기계장비","117680":"KODEX 철강",    # [V3.7.0] 102960 정정
-        "379800":"KODEX 미국S&P500","379810":"KODEX 미국나스닥100TR",             # [V3.7.0] 이름/코드 정정
+        "379800":"KODEX 미국S&P500","379810":"KODEX 미국나스닥100",             # [V3.7.0] 이름/코드 정정
         "314250":"KODEX 미국빅테크10(H)","251350":"KODEX MSCI선진국",             # [V3.7.0] 이름 정정
         "453810":"KODEX 인도Nifty50",                                             # [V3.7.0] 453810 정정
         "0080G0":"KODEX K방산TOP10","244580":"KODEX 바이오","315930":"KODEX Top5PlusTR",
@@ -244,7 +244,7 @@ def load_and_process_data_v3_5_2_MASTER_FINAL(is_backtest=False):
     import FinanceDataReader as fdr
     TARGET_ETFS = {
         "069500.KS": "KODEX 200", "229200.KS": "KODEX 코스닥150",                  # [V3.7.0] 229200 정정
-        "379800.KS": "KODEX 미국S&P500", "379810.KS": "KODEX 미국나스닥100TR",     # [V3.7.0] 이름/코드 정정
+        "379800.KS": "KODEX 미국S&P500", "379810.KS": "KODEX 미국나스닥100",     # [V3.7.0] 이름/코드 정정
         "314250.KS": "KODEX 미국빅테크10(H)", "091160.KS": "KODEX 반도체",         # [V3.7.0] 이름 정정
         "305720.KS": "KODEX 2차전지산업", "453810.KS": "KODEX 인도Nifty50",        # [V3.7.0] 453810 정정
         "244580.KS": "KODEX 바이오", "0080G0": "KODEX K방산TOP10",

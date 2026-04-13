@@ -16,7 +16,7 @@ TICKER_PARAMS = {
     "KODEX 철강": {'k': 0.3, 'mfi': 40, 'adx_threshold': 15},
     # [UPDATED] 글로벌 / 메가트렌드 (V3.5.0 → V3.7.0 정비)
     "KODEX 미국S&P500": {'k': 0.7, 'mfi': 40, 'adx_threshold': 15},       # [V3.7.0] 이름 정정
-    "KODEX 미국나스닥100TR": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
+    "KODEX 미국나스닥100": {'k': 0.5, 'mfi': 50, 'adx_threshold': 15},
     "KODEX 미국빅테크10(H)": {'k': 0.4, 'mfi': 60, 'adx_threshold': 20},  # [V3.7.0] 이름 정정
     "KODEX MSCI선진국": {'k': 0.6, 'mfi': 40, 'adx_threshold': 15},        # [V3.7.0] 이름 정정
     "KODEX 인도Nifty50": {'k': 0.6, 'mfi': 50, 'adx_threshold': 15},
