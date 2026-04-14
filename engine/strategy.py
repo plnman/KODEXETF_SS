@@ -67,12 +67,18 @@ def build_signals_and_targets(df: pd.DataFrame, ticker_name: str = "DEFAULT", ov
     
     # [V3.1.2] Composite RS (복합 주도주 지수) 산출
     # 단순 20일 수익률에 추세 가중치 부여: 역배열 종목(넌센스)을 순위에서 강제 퇴출
-    is_above_20 = df['close'] > df['sma_20']
-    is_above_60 = df['close'] > df['sma_60']
+    # [V3.8.2] NaN 중립 처리: 데이터 부족(신규 상장 ETF)으로 SMA가 NaN인 구간은
+    #          False(패널티) 대신 0.5(중립)으로 처리 → 기존 ETF와 동등한 RS 경쟁 가능
+    is_above_20  = df['close'] > df['sma_20']
+    is_above_60  = df['close'] > df['sma_60']
     is_above_120 = df['close'] > df['sma_120']
-    
-    # 정배열 점수 (3단계 가점)
-    trend_score = is_above_20.astype(int) + is_above_60.astype(int) + is_above_120.astype(int)
+
+    score_20  = is_above_20.astype(float)
+    score_60  = is_above_60.where(df['sma_60'].notna(),  0.5).astype(float)
+    score_120 = is_above_120.where(df['sma_120'].notna(), 0.5).astype(float)
+
+    # 정배열 점수 (3단계 가점, NaN 구간은 0.5 중립)
+    trend_score = score_20 + score_60 + score_120
     
     # Composite RS = rs_20 * (1 + 0.5 * trend_score)
     # 추세가 무너진 종목(trend_score=0)은 수익률이 좋아도 점수가 낮게 유지됨
