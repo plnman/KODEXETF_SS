@@ -26,6 +26,7 @@ STABLE_ROI = 292.60  # 5종목 기준 [V3.8.0 확정: 신규종목 공통 파라
 TARGET_ROWS = 1781   # 2019-01-02 ~ 2026-04-03 (KRX Master 1781 정합성)
 BACKTEST_END_DATE = "2026-04-04"  # 봉인된 백테스트 종료일
 LIVE_LOOKBACK_DAYS = 500          # 실전신호 전용 최근 데이터 로딩 범위 (일) [V3.5.11: 레짐 Z-score 워밍업 280거래일 보장]
+MAX_POSITIONS = 10               # 실전 보유 최대 종목수 (백테스팅 확정값)
 
 # [NEW] 6단계 DB 바인딩을 위한 Supabase 연동
 from data_collector.supabase_client import get_supabase_client
@@ -49,9 +50,9 @@ def convert_df_to_csv(df):
     return df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
 
 @st.cache_data(ttl=3600)
-def cached_run_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep, version=APP_VERSION):
+def cached_run_backtest(all_signals, initial_capital, max_tickers, version=APP_VERSION):
     """백테스팅 연산 결과 캐싱 (다운로드 시 오차 및 타임아웃 방지)"""
-    return run_portfolio_backtest(all_signals, initial_capital, max_tickers, use_cash_sweep)
+    return run_portfolio_backtest(all_signals, initial_capital, max_tickers)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # [V3.5.7] 2-Track 아키텍처: 백테스트 DB캐시 + 실전신호 경량 분리
@@ -440,7 +441,7 @@ def main():
         ]
         rs_ranked = sorted(valid_signals, key=lambda x: x[1], reverse=True)
         rs_rank_map = {name: i + 1 for i, (name, _) in enumerate(rs_ranked)}
-        top5_names = [name for name, _ in rs_ranked[:max_tickers]]  # max_tickers 연동
+        top5_names = [name for name, _ in rs_ranked[:5]]  # 카드는 항상 TOP 5 고정
 
         # 2) 현재 보유 종목 조회 (live_trades DB)
         held_names = set()
@@ -473,17 +474,13 @@ def main():
         except Exception:
             pass
 
-        # 3) 카드 목록 = TOP5 + (보유 + 매수대기) 중 TOP5 밖인 것 (RS 순위 정렬, 최대 10장)
-        extra_names = sorted(
-            [(n in held_names, n) for n in (held_names | pending_buy_names) if n not in top5_names],
-            key=lambda x: (-int(x[0]), rs_rank_map.get(x[1], 999))
-        )
-        card_list = top5_names + [n for _, n in extra_names]  # 최대 10장
+        # 3) 카드 목록 = TOP 5 RS 고정 (보유/매수대기가 top5 밖이면 보유섹션에서 별도 표시)
+        card_list = top5_names
 
         NAME_TO_TICKER = {v: k for k, v in ETFS_CLEAN.items()}  # [V3.8.0] .KS 제거된 clean code 사용
 
         # 범례
-        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP {max_tickers} RS + 관련 종목 표시")
+        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS 고정 표시 | 보유 종목은 하단 섹션 참조")
 
         cols_per_row = 3
         def ck(b): return "✅" if b else "❌"
@@ -622,6 +619,67 @@ def main():
                         f'</div>'
                     )
                     st.markdown(_card, unsafe_allow_html=True)
+
+        # ── 보유 포지션 상세 섹션 ─────────────────────────────────────────────
+        st.divider()
+        st.subheader("📦 현재 보유 포지션")
+        if not held_names:
+            st.info("현재 보유 중인 포지션 없음")
+        else:
+            pos_rows = []
+            try:
+                trades_detail = supabase.table('live_trades').select(
+                    'ticker,action,units,execute_price,hard_stop_pct,execute_date'
+                ).execute()
+                pos_map = {}
+                for r in (trades_detail.data or []):
+                    if r['action'] == 'BUY':
+                        pos_map[r['ticker']] = r
+                    elif r['action'] in ('EXIT','EXIT_HARDSTOP','EXIT_SWITCH') and r['ticker'] in pos_map:
+                        del pos_map[r['ticker']]
+            except Exception:
+                pos_map = {}
+
+            for ticker_name in sorted(held_names):
+                if ticker_name not in all_signals:
+                    continue
+                df_curr    = all_signals[ticker_name].iloc[-1]
+                curr_p     = float(df_curr.get('close', 0))
+                exit_sig   = bool(df_curr.get('exit_signal_T', False))
+                rs_rank    = rs_rank_map.get(ticker_name, 99)
+                switching  = rs_rank > MAX_POSITIONS
+
+                pos_info   = pos_map.get(ticker_name, {})
+                entry_p    = float(pos_info.get('execute_price') or 0)
+                stop_pct   = float(pos_info.get('hard_stop_pct') or 0)
+                units      = float(pos_info.get('units') or 0)
+                entry_date = pos_info.get('execute_date', '-')
+                stop_price = entry_p * (1 - stop_pct) if entry_p > 0 and stop_pct > 0 else 0
+                pnl_pct    = ((curr_p / entry_p) - 1) * 100 if entry_p > 0 else 0
+                eval_amt   = units * curr_p
+
+                # 경고 표시
+                warn = []
+                if exit_sig:
+                    warn.append("🔴 SMA 이탈")
+                if switching:
+                    warn.append(f"⚠️ RS {rs_rank}위 (TOP{MAX_POSITIONS} 이탈)")
+                warn_txt = " | ".join(warn) if warn else "🟢 정상 보유"
+
+                pos_rows.append({
+                    "종목명":     ticker_name,
+                    "진입일":     entry_date,
+                    "진입가":     f"{entry_p:,.0f}",
+                    "현재가":     f"{curr_p:,.0f}",
+                    "평가손익":   f"{pnl_pct:+.2f}%",
+                    "평가금액":   f"{eval_amt:,.0f}",
+                    "RS순위":     f"{rs_rank}위",
+                    "하드스탑가": f"{stop_price:,.0f}" if stop_price > 0 else "-",
+                    "상태":       warn_txt,
+                })
+
+            if pos_rows:
+                st.dataframe(pd.DataFrame(pos_rows), use_container_width=True, hide_index=True)
 
         st.caption("📡 매일 오후 4시, 시그널 발생 종목이 자동으로 '실전 성과 궤적' 탭에 기록됩니다.")
 

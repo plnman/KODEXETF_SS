@@ -3,14 +3,20 @@ scripts/save_daily_signals.py
 ==============================
 매일 16:10 KST (07:10 UTC) GitHub Actions에 의해 자동 실행.
 
+[TASK 0] 티커 무결성 검증
 [TASK 1] 오늘 신호 기록
-  - 전체 23개 ETF 실전 신호 계산 → Supabase daily_signals 저장
+  - 전체 15개 ETF 실전 신호 계산 → Supabase daily_signals 저장
+  - K200 레짐 기반 is_bull_market 동적 계산 (백테스팅과 동일)
+  - turbo_discount=0.4 (백테스팅과 동일)
+  - hard_stop_loss_pct 저장
 
-[TASK 2] 전날 신호 체결 기록 (V3.6.1)
-  - 전날 buy_signal=True / exit_signal=True 종목 조회
-  - 오늘 시가(open)로 체결가 확정 → live_trades 저장
+[TASK 2] 전날 신호 체결 기록 (V3.9.0)
+  - 전날 신호 조회 → RS 순위 계산
+  - EXIT 처리: Hard Stop > Switching(RS 이탈) > SMA 이탈 순서
+  - BUY 처리: Full Cash Sweep (잔여현금 × 0.998) — 백테스팅과 동일
+  - hard_stop_pct live_trades에 저장
 
-[TASK 3] 포트폴리오 가치 업데이트 (V3.6.1)
+[TASK 3] 포트폴리오 가치 업데이트
   - 현재 보유 포지션 × 오늘 종가 + 현금 = 총 가치
   - live_portfolio_history 저장
 
@@ -39,13 +45,12 @@ from data_collector.daily_scraper import (
     TARGET_ETFS,
     verify_tickers,
 )
-from engine.strategy import build_signals_and_targets
+from engine.strategy import build_signals_and_targets, get_market_regime
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 LOOKBACK_DAYS    = 500
 INITIAL_CAPITAL  = 50_000_000.0
-MAX_POSITIONS    = 10                                # [V3.8.1] 백테스팅 확정 10종목 고정
-ALLOC_PER_POS    = INITIAL_CAPITAL / MAX_POSITIONS   # 1종목당 5,000,000원
+MAX_POSITIONS    = 10                # [V3.8.1] 백테스팅 확정 10종목 고정
 KST              = pytz.timezone('Asia/Seoul')
 now_kst          = datetime.now(KST)
 TODAY_STR        = now_kst.strftime("%Y-%m-%d")
@@ -84,9 +89,40 @@ def load_ticker(fdr_code: str, start: str = None) -> pd.DataFrame | None:
         return None
 
 
+# ── K200 레짐 계산 (백테스팅과 동일 로직) ──────────────────────────────────────
+def load_k200_regime():
+    """K200 기반 시장 레짐 계산. (regime_series, is_bull_now) 반환"""
+    start = (datetime.now() - timedelta(days=LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    try:
+        df = fdr.DataReader("069500", start)
+        if df.empty:
+            return None, False
+        df = df.reset_index().rename(columns={
+            'Date': 'date', 'Open': 'open', 'High': 'high',
+            'Low': 'low', 'Close': 'close', 'Volume': 'volume'
+        })
+        df.columns = [c.lower() for c in df.columns]
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date').reset_index(drop=True)
+        df['mfi'] = calculate_mfi(df)
+        df['intraday_intensity'] = calculate_intraday_intensity(df)
+        k200_sig = build_signals_and_targets(df, ticker_name="KODEX 200", turbo_discount=0.5)
+        regime_series = get_market_regime(k200_sig, use_global_mfi=True)
+        is_bull_now = bool(regime_series.iloc[-1]) if not regime_series.empty else False
+        print(f"  K200 레짐: {'🚀 불장' if is_bull_now else '🛡️ 안정장'}")
+        return regime_series, is_bull_now
+    except Exception as e:
+        print(f"  [WARN] K200 레짐 계산 실패: {e} — is_bull_market=False 고정")
+        return None, False
+
+
 # ── TASK 1: 오늘 신호 기록 ────────────────────────────────────────────────────
 def task1_save_signals():
     print(f"\n[TASK 1] 신호 기록 — signal_date={TODAY_STR}")
+
+    # K200 레짐 계산
+    regime_series, is_bull_now = load_k200_regime()
+
     success, fail = 0, 0
     all_today_signals = {}   # ticker_name → latest row (TASK 3에서 재사용)
 
@@ -104,8 +140,20 @@ def task1_save_signals():
         df['intraday_intensity'] = calculate_intraday_intensity(df)
 
         try:
-            sig     = build_signals_and_targets(df.copy(), ticker_name=ticker_name, is_bull_market=False)
-            latest  = sig.iloc[-1]
+            # regime_series를 날짜 인덱스에 맞춰 정렬 (백테스팅과 동일)
+            if regime_series is not None:
+                df_indexed = df.set_index('date')
+                regime_aligned = regime_series.reindex(df_indexed.index).fillna(False)
+            else:
+                regime_aligned = False
+
+            sig    = build_signals_and_targets(
+                df.copy(),
+                ticker_name=ticker_name,
+                is_bull_market=regime_aligned,
+                turbo_discount=0.4      # 백테스팅과 동일
+            )
+            latest = sig.iloc[-1]
             all_today_signals[ticker_name] = latest
 
             record = {
@@ -117,6 +165,7 @@ def task1_save_signals():
                 "buy_signal":         bool(latest.get('buy_signal_T', False)),
                 "exit_signal":        bool(latest.get('exit_signal_T', False)),
                 "mfi":                float(latest.get('mfi', 0)),
+                "hard_stop_loss_pct": float(latest.get('hard_stop_loss_pct', 0)),
             }
             sb.table('daily_signals').upsert(record, on_conflict='signal_date,ticker').execute()
             mark = "BUY" if record['buy_signal'] else ("EXIT" if record['exit_signal'] else "---")
@@ -126,7 +175,7 @@ def task1_save_signals():
             print(f"ERROR: {e}")
             fail += 1
 
-    print(f"  → 성공={success} 실패={fail}")
+    print(f"  → 성공={success} 실패={fail}  불장={is_bull_now}")
     return all_today_signals
 
 
@@ -145,93 +194,156 @@ def task2_record_executions():
         print(f"  전날({YESTERDAY_STR}) 신호 없음 — 스킵")
         return
 
-    # [V3.8.1] RS 내림차순 정렬: BUY 후보는 composite_rs 상위 종목부터 처리
-    # EXIT은 RS 순위와 무관하게 전체 처리 (보유 종목 청산은 항상 우선)
     all_signals_list = res.data
-    buy_candidates  = sorted(
-        [r for r in all_signals_list if r.get('buy_signal')],
-        key=lambda x: float(x.get('composite_rs') or 0), reverse=True
-    )
-    exit_candidates = [r for r in all_signals_list if r.get('exit_signal')]
-    exit_tickers    = {r['ticker'] for r in exit_candidates}
-    # EXIT 먼저, BUY는 EXIT 대상 종목 제외 (동일 종목 중복 처리 방지)
-    buy_candidates  = [r for r in buy_candidates if r['ticker'] not in exit_tickers]
-    ordered_signals = exit_candidates + buy_candidates
 
-    # 현재 보유 포지션 조회 (EXIT 여부 확인용)
+    # RS 순위 계산 (전날 신호 기준)
+    rs_sorted = sorted(all_signals_list, key=lambda x: float(x.get('composite_rs') or 0), reverse=True)
+    top_n_tickers = {r['ticker'] for r in rs_sorted[:MAX_POSITIONS]}
+
+    # BUY 후보: RS 내림차순, EXIT 후보: 전체
+    buy_candidates  = [r for r in rs_sorted if r.get('buy_signal')]
+    exit_signal_tickers = {r['ticker'] for r in all_signals_list if r.get('exit_signal')}
+
+    # 현재 보유 포지션 조회 (entry_price + hard_stop_pct 포함)
     open_positions = _get_open_positions()
+    print(f"  현재 보유: {list(open_positions.keys())}")
 
-    for sig in ordered_signals:
-        ticker_name = sig['ticker']
+    # 잔여 현금 추적 (Full Cash Sweep용)
+    cash = _calc_cash()
+    print(f"  현재 현금: {cash:,.0f}원")
+
+    # 오늘 OHLCV 캐시 (ticker_name → row)
+    today_ohlcv = {}
+    needed_tickers = set(open_positions.keys()) | {r['ticker'] for r in buy_candidates}
+    for ticker_name in needed_tickers:
         fdr_code = FDR_CODE.get(ticker_name)
         if not fdr_code:
             continue
-
-        # 오늘 시가 조회 (load_ticker의 len<30 필터 우회를 위해 60일치 조회 후 오늘 행 필터)
         recent_start = (now_kst - timedelta(days=60)).strftime("%Y-%m-%d")
-        df_today = load_ticker(fdr_code, start=recent_start)
-        if df_today is None or df_today.empty:
+        df_recent = load_ticker(fdr_code, start=recent_start)
+        if df_recent is None or df_recent.empty:
             continue
-        today_row = df_today[df_today['date'].dt.strftime('%Y-%m-%d') == TODAY_STR]
+        today_row = df_recent[df_recent['date'].dt.strftime('%Y-%m-%d') == TODAY_STR]
         if today_row.empty:
             continue
-        open_price  = float(today_row.iloc[0]['open'])
+        today_ohlcv[ticker_name] = today_row.iloc[0]
+
+    # ── EXIT 처리 (Hard Stop > Switching > SMA 순서) ──────────────────────────
+    tickers_exited = set()
+    for ticker_name, pos in list(open_positions.items()):
+        if ticker_name not in today_ohlcv:
+            print(f"  [SKIP] {ticker_name}: 오늘 데이터 없음 (EXIT 불가)")
+            continue
+
+        row       = today_ohlcv[ticker_name]
+        units     = pos['units']
+        entry_p   = pos['entry_price']
+        stop_pct  = pos['hard_stop_pct']
+        today_low = float(row['low'])
+        today_open = float(row['open'])
+
+        exit_price  = None
+        exit_action = None
+
+        # 1) Hard Stop: 오늘 저가가 손절가 이하
+        if stop_pct > 0 and entry_p > 0:
+            hard_stop_price = entry_p * (1 - stop_pct)
+            if today_low <= hard_stop_price:
+                exit_price  = hard_stop_price
+                exit_action = "EXIT_HARDSTOP"
+
+        # 2) Switching: RS 순위 이탈
+        if exit_price is None and ticker_name not in top_n_tickers:
+            exit_price  = today_open
+            exit_action = "EXIT_SWITCH"
+
+        # 3) SMA 이탈 exit_signal
+        if exit_price is None and ticker_name in exit_signal_tickers:
+            exit_price  = today_open
+            exit_action = "EXIT"
+
+        if exit_price is not None and exit_action is not None:
+            amount = round(units * exit_price, 2)
+            try:
+                sb.table('live_trades').upsert({
+                    "signal_date":   YESTERDAY_STR,
+                    "execute_date":  TODAY_STR,
+                    "ticker":        ticker_name,
+                    "action":        exit_action,
+                    "execute_price": exit_price,
+                    "signal_close":  float(today_ohlcv[ticker_name]['close']),
+                    "units":         round(units, 6),
+                    "amount":        amount,
+                    "hard_stop_pct": round(stop_pct, 6),
+                }, on_conflict='signal_date,ticker,action').execute()
+                cash += amount
+                tickers_exited.add(ticker_name)
+                print(f"  {exit_action} {ticker_name}: {exit_price:,.0f}원 × {units:.2f}주 = {amount:,.0f}원")
+            except Exception as e:
+                print(f"  [ERROR] {exit_action} 기록 실패 {ticker_name}: {e}")
+
+    # ── BUY 처리 (Full Cash Sweep — 잔여현금 × 0.998) ───────────────────────────
+    current_held = (set(open_positions.keys()) - tickers_exited)
+    for sig in buy_candidates:
+        ticker_name = sig['ticker']
+
+        # 이미 보유 중이거나 오늘 EXIT한 종목 스킵
+        if ticker_name in current_held or ticker_name in tickers_exited:
+            continue
+        # RS top-N 밖이면 BUY 안 함 (Switching 로직과 대칭)
+        if ticker_name not in top_n_tickers:
+            continue
+        # 최대 포지션 수 체크
+        if len(current_held) >= MAX_POSITIONS:
+            break
+
+        if ticker_name not in today_ohlcv:
+            continue
+
+        row        = today_ohlcv[ticker_name]
+        open_price = float(row['open'])
         signal_close = float(sig.get('close', 0))
+        hard_stop_pct = float(sig.get('hard_stop_loss_pct') or 0)
 
-        # BUY 체결
-        if sig.get('buy_signal') and ticker_name not in open_positions and len(open_positions) < MAX_POSITIONS:
-            allocation = ALLOC_PER_POS
-            units      = allocation / open_price if open_price > 0 else 0
-            try:
-                sb.table('live_trades').upsert({
-                    "signal_date":   YESTERDAY_STR,
-                    "execute_date":  TODAY_STR,
-                    "ticker":        ticker_name,
-                    "action":        "BUY",
-                    "execute_price": open_price,
-                    "signal_close":  signal_close,
-                    "units":         round(units, 6),
-                    "amount":        round(units * open_price, 2),
-                }, on_conflict='signal_date,ticker,action').execute()
-                open_positions[ticker_name] = units
-                print(f"  BUY  {ticker_name}: {open_price:,.0f}원 × {units:.2f}주 = {units*open_price:,.0f}원")
-            except Exception as e:
-                print(f"  [ERROR] BUY 기록 실패 {ticker_name}: {e}")
+        # Full Cash Sweep: 잔여현금 × 0.998
+        invest = cash * 0.998
+        if invest <= 0 or open_price <= 0:
+            continue
+        units = invest / open_price
 
-        # EXIT 체결
-        elif sig.get('exit_signal') and ticker_name in open_positions:
-            units = open_positions[ticker_name]
-            try:
-                sb.table('live_trades').upsert({
-                    "signal_date":   YESTERDAY_STR,
-                    "execute_date":  TODAY_STR,
-                    "ticker":        ticker_name,
-                    "action":        "EXIT",
-                    "execute_price": open_price,
-                    "signal_close":  signal_close,
-                    "units":         round(units, 6),
-                    "amount":        round(units * open_price, 2),
-                }, on_conflict='signal_date,ticker,action').execute()
-                del open_positions[ticker_name]
-                print(f"  EXIT {ticker_name}: {open_price:,.0f}원 × {units:.2f}주 = {units*open_price:,.0f}원")
-            except Exception as e:
-                print(f"  [ERROR] EXIT 기록 실패 {ticker_name}: {e}")
+        try:
+            sb.table('live_trades').upsert({
+                "signal_date":   YESTERDAY_STR,
+                "execute_date":  TODAY_STR,
+                "ticker":        ticker_name,
+                "action":        "BUY",
+                "execute_price": open_price,
+                "signal_close":  signal_close,
+                "units":         round(units, 6),
+                "amount":        round(units * open_price, 2),
+                "hard_stop_pct": round(hard_stop_pct, 6),
+            }, on_conflict='signal_date,ticker,action').execute()
+            cash -= round(units * open_price, 2)
+            current_held.add(ticker_name)
+            print(f"  BUY  {ticker_name}: {open_price:,.0f}원 × {units:.2f}주 = {units*open_price:,.0f}원  [stop={hard_stop_pct:.4f}]")
+        except Exception as e:
+            print(f"  [ERROR] BUY 기록 실패 {ticker_name}: {e}")
 
 
 # ── TASK 3: 포트폴리오 가치 업데이트 ─────────────────────────────────────────
 def task3_update_portfolio(all_today_signals: dict):
     print(f"\n[TASK 3] 포트폴리오 가치 업데이트 — date={TODAY_STR}")
 
-    open_positions = _get_open_positions()   # {ticker_name: units}
+    open_positions = _get_open_positions()   # {ticker_name: {units, entry_price, hard_stop_pct}}
     cash           = _calc_cash()
 
     # 보유 종목 평가액 (오늘 종가)
     positions_value = 0.0
-    for ticker_name, units in open_positions.items():
+    for ticker_name, pos in open_positions.items():
         latest = all_today_signals.get(ticker_name)
         if latest is not None:
             close_price = float(latest.get('close', 0))
-            positions_value += units * close_price
+            positions_value += pos['units'] * close_price
 
     total_value = cash + positions_value
 
@@ -250,14 +362,18 @@ def task3_update_portfolio(all_today_signals: dict):
 
 # ── 헬퍼: 현재 오픈 포지션 ────────────────────────────────────────────────────
 def _get_open_positions() -> dict:
-    """live_trades에서 BUY 후 EXIT 안 된 종목 반환 {ticker: units}"""
+    """live_trades에서 BUY 후 EXIT 안 된 종목 반환 {ticker: {units, entry_price, hard_stop_pct}}"""
     try:
-        res = sb.table('live_trades').select('ticker,action,units').execute()
+        res = sb.table('live_trades').select('ticker,action,units,execute_price,hard_stop_pct').execute()
         pos = {}
         for r in res.data:
             if r['action'] == 'BUY':
-                pos[r['ticker']] = float(r['units'])
-            elif r['action'] == 'EXIT' and r['ticker'] in pos:
+                pos[r['ticker']] = {
+                    'units':         float(r.get('units') or 0),
+                    'entry_price':   float(r.get('execute_price') or 0),
+                    'hard_stop_pct': float(r.get('hard_stop_pct') or 0),
+                }
+            elif r['action'] in ('EXIT', 'EXIT_HARDSTOP', 'EXIT_SWITCH') and r['ticker'] in pos:
                 del pos[r['ticker']]
         return pos
     except Exception:
@@ -272,7 +388,7 @@ def _calc_cash() -> float:
         for r in res.data:
             if r['action'] == 'BUY':
                 cash -= float(r['amount'])
-            elif r['action'] == 'EXIT':
+            elif r['action'] in ('EXIT', 'EXIT_HARDSTOP', 'EXIT_SWITCH'):
                 cash += float(r['amount'])
         return max(cash, 0.0)
     except Exception:

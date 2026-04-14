@@ -5,7 +5,7 @@ import numpy as np
 # !!! 수익률 연산 산식 절대 수정 금지 - 데이터 소스 변경 효과 측정용 성역 !!!
 # -------------------------------------------------------------------------------------
 
-def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 10000000.0, max_tickers: int = 3, use_cash_sweep: bool = True) -> dict:
+def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 10000000.0, max_tickers: int = 3) -> dict:
     daily_data = {}
     for ticker, df in all_signals_dict.items():
         daily_data[ticker] = df.set_index('date')
@@ -16,8 +16,8 @@ def run_portfolio_backtest(all_signals_dict: dict, initial_capital: float = 1000
     unique_dates = sorted(list(unique_dates_set))
     
     capital = initial_capital
-    positions = {} 
-    
+    positions = {}
+
     portfolio_history = []
     trade_logs = []  # 개별 매매 상세 결산 로그
     current_target_tickers = []
