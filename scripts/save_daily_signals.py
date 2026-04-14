@@ -44,8 +44,8 @@ from engine.strategy import build_signals_and_targets
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 LOOKBACK_DAYS    = 500
 INITIAL_CAPITAL  = 50_000_000.0
-MAX_POSITIONS    = 5
-ALLOC_PER_POS    = INITIAL_CAPITAL / MAX_POSITIONS   # 1종목당 10,000,000원
+MAX_POSITIONS    = 10                                # [V3.8.1] 백테스팅 확정 10종목 고정
+ALLOC_PER_POS    = INITIAL_CAPITAL / MAX_POSITIONS   # 1종목당 5,000,000원
 KST              = pytz.timezone('Asia/Seoul')
 now_kst          = datetime.now(KST)
 TODAY_STR        = now_kst.strftime("%Y-%m-%d")
@@ -145,12 +145,24 @@ def task2_record_executions():
         print(f"  전날({YESTERDAY_STR}) 신호 없음 — 스킵")
         return
 
-    yesterday_signals = {r['ticker']: r for r in res.data}
+    # [V3.8.1] RS 내림차순 정렬: BUY 후보는 composite_rs 상위 종목부터 처리
+    # EXIT은 RS 순위와 무관하게 전체 처리 (보유 종목 청산은 항상 우선)
+    all_signals_list = res.data
+    buy_candidates  = sorted(
+        [r for r in all_signals_list if r.get('buy_signal')],
+        key=lambda x: float(x.get('composite_rs') or 0), reverse=True
+    )
+    exit_candidates = [r for r in all_signals_list if r.get('exit_signal')]
+    exit_tickers    = {r['ticker'] for r in exit_candidates}
+    # EXIT 먼저, BUY는 EXIT 대상 종목 제외 (동일 종목 중복 처리 방지)
+    buy_candidates  = [r for r in buy_candidates if r['ticker'] not in exit_tickers]
+    ordered_signals = exit_candidates + buy_candidates
 
     # 현재 보유 포지션 조회 (EXIT 여부 확인용)
     open_positions = _get_open_positions()
 
-    for ticker_name, sig in yesterday_signals.items():
+    for sig in ordered_signals:
+        ticker_name = sig['ticker']
         fdr_code = FDR_CODE.get(ticker_name)
         if not fdr_code:
             continue

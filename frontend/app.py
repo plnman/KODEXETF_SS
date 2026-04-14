@@ -405,7 +405,7 @@ def main():
     c_int1, c_int2, c_int3, c_int4 = st.columns(4)
     c_int1.metric("시작-종료 범위", f"2019-01-02 ~ {BACKTEST_END_DATE}")
     c_int2.metric("이중 데이터 무결성 점수", f"🟢 {final_integrity_score}%", help=integrity_live.get('detail', ''))
-    c_int3.metric("데이터 총 행수", f"{port_res.get('total_days', TARGET_ROWS)} rows")
+    c_int3.metric("백테스팅 거래일 수", f"{port_res.get('total_days', TARGET_ROWS)} 거래일")
     integrity_status = "🟢 정상 (Verified)" if abs(diff_ret) < 0.1 else "🔴 주의 (Anomaly Detected)"
     c_int4.metric("수익률 정밀 오차", f"{diff_ret:+.2f}%", integrity_status)
 
