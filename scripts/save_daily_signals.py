@@ -265,7 +265,7 @@ def task2_record_executions():
         if exit_price is not None and exit_action is not None:
             amount = round(units * exit_price, 2)
             try:
-                sb.table('live_trades').upsert({
+                _upsert_trade(sb, {
                     "signal_date":   YESTERDAY_STR,
                     "execute_date":  TODAY_STR,
                     "ticker":        ticker_name,
@@ -275,7 +275,7 @@ def task2_record_executions():
                     "units":         round(units, 6),
                     "amount":        amount,
                     "hard_stop_pct": round(stop_pct, 6),
-                }, on_conflict='signal_date,ticker,action').execute()
+                })
                 cash += amount
                 tickers_exited.add(ticker_name)
                 print(f"  {exit_action} {ticker_name}: {exit_price:,.0f}원 × {units:.2f}주 = {amount:,.0f}원")
@@ -312,7 +312,7 @@ def task2_record_executions():
         units = invest / open_price
 
         try:
-            sb.table('live_trades').upsert({
+            _upsert_trade(sb, {
                 "signal_date":   YESTERDAY_STR,
                 "execute_date":  TODAY_STR,
                 "ticker":        ticker_name,
@@ -322,7 +322,7 @@ def task2_record_executions():
                 "units":         round(units, 6),
                 "amount":        round(units * open_price, 2),
                 "hard_stop_pct": round(hard_stop_pct, 6),
-            }, on_conflict='signal_date,ticker,action').execute()
+            })
             cash -= round(units * open_price, 2)
             current_held.add(ticker_name)
             print(f"  BUY  {ticker_name}: {open_price:,.0f}원 × {units:.2f}주 = {units*open_price:,.0f}원  [stop={hard_stop_pct:.4f}]")
@@ -360,11 +360,36 @@ def task3_update_portfolio(all_today_signals: dict):
         print(f"  [ERROR] 포트폴리오 업데이트 실패: {e}")
 
 
+# ── 헬퍼: live_trades upsert (hard_stop_pct 컬럼 없으면 fallback) ──────────────
+_hard_stop_col_exists = None   # 캐시: None=미확인, True/False
+
+def _upsert_trade(sb_client, record: dict):
+    """live_trades upsert. hard_stop_pct 컬럼 미존재 시 자동 fallback."""
+    global _hard_stop_col_exists
+    if _hard_stop_col_exists is False:
+        record = {k: v for k, v in record.items() if k != 'hard_stop_pct'}
+    try:
+        sb_client.table('live_trades').upsert(record, on_conflict='signal_date,ticker,action').execute()
+        _hard_stop_col_exists = True
+    except Exception as e:
+        if '42703' in str(e) or 'hard_stop_pct does not exist' in str(e):
+            print(f"  [WARN] hard_stop_pct 컬럼 없음 — fallback (컬럼 추가 필요)")
+            _hard_stop_col_exists = False
+            fallback = {k: v for k, v in record.items() if k != 'hard_stop_pct'}
+            sb_client.table('live_trades').upsert(fallback, on_conflict='signal_date,ticker,action').execute()
+        else:
+            raise
+
+
 # ── 헬퍼: 현재 오픈 포지션 ────────────────────────────────────────────────────
 def _get_open_positions() -> dict:
     """live_trades에서 BUY 후 EXIT 안 된 종목 반환 {ticker: {units, entry_price, hard_stop_pct}}"""
     try:
-        res = sb.table('live_trades').select('ticker,action,units,execute_price,hard_stop_pct').execute()
+        cols = 'ticker,action,units,execute_price,hard_stop_pct' if _hard_stop_col_exists is not False else 'ticker,action,units,execute_price'
+        try:
+            res = sb.table('live_trades').select(cols).execute()
+        except Exception:
+            res = sb.table('live_trades').select('ticker,action,units,execute_price').execute()
         pos = {}
         for r in res.data:
             if r['action'] == 'BUY':
