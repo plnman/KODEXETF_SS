@@ -431,7 +431,7 @@ def main():
     
     # === TAB 1: AI 실전 시그널 보드 ===
     with tab1:
-        st.header("🎯 오늘의 AI 매매 권고")
+        st.header(f"🎯 오늘의 AI 매매 권고  ({today_date} | 업데이트 {datetime.now().strftime('%H:%M')})")
 
         # 1) RS 전체 순위
         valid_signals = [
