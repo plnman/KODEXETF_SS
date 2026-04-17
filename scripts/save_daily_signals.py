@@ -272,13 +272,13 @@ def task2_record_executions():
                     "action":        exit_action,
                     "execute_price": exit_price,
                     "signal_close":  float(today_ohlcv[ticker_name]['close']),
-                    "units":         round(units, 6),
+                    "units":         float(int(units)),
                     "amount":        amount,
                     "hard_stop_pct": round(stop_pct, 6),
                 })
                 cash += amount
                 tickers_exited.add(ticker_name)
-                print(f"  {exit_action} {ticker_name}: {exit_price:,.0f}원 × {units:.2f}주 = {amount:,.0f}원")
+                print(f"  {exit_action} {ticker_name}: {exit_price:,.0f}원 × {int(units)}주 = {amount:,.0f}원")
             except Exception as e:
                 print(f"  [ERROR] {exit_action} 기록 실패 {ticker_name}: {e}")
 
@@ -305,11 +305,15 @@ def task2_record_executions():
         signal_close = float(sig.get('close', 0))
         hard_stop_pct = float(sig.get('hard_stop_loss_pct') or 0)
 
-        # Full Cash Sweep: 잔여현금 × 0.998
+        # Full Cash Sweep: 잔여현금 × 0.998, 정수 주문만 허용
         invest = cash * 0.998
         if invest <= 0 or open_price <= 0:
             continue
-        units = invest / open_price
+        units  = int(invest / open_price)          # 소수점 버림 — 1주 단위 주문
+        if units == 0:                              # 잔여현금으로 1주도 못 살 경우 스킵
+            print(f"  [SKIP] {ticker_name}: 잔여현금 {cash:,.0f}원 < 1주({open_price:,.0f}원) — 매수 불가")
+            continue
+        amount = units * open_price                # 실제 체결금액 (invest 아님)
 
         try:
             _upsert_trade(sb, {
@@ -319,13 +323,14 @@ def task2_record_executions():
                 "action":        "BUY",
                 "execute_price": open_price,
                 "signal_close":  signal_close,
-                "units":         round(units, 6),
-                "amount":        round(units * open_price, 2),
+                "units":         float(units),
+                "amount":        round(amount, 2),
                 "hard_stop_pct": round(hard_stop_pct, 6),
             })
-            cash -= round(units * open_price, 2)
+            cash -= amount
             current_held.add(ticker_name)
-            print(f"  BUY  {ticker_name}: {open_price:,.0f}원 × {units:.2f}주 = {units*open_price:,.0f}원  [stop={hard_stop_pct:.4f}]")
+            print(f"  BUY  {ticker_name}: {open_price:,.0f}원 × {units}주 = {amount:,.0f}원  [stop={hard_stop_pct:.4f}]")
+            break  # Full Cash Sweep — 1회 매수 후 종료 (몰빵 설계)
         except Exception as e:
             print(f"  [ERROR] BUY 기록 실패 {ticker_name}: {e}")
 
