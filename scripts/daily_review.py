@@ -233,6 +233,68 @@ for name in top5:
     print(f"  {name:<32} {db_stop:>9.4f} {calc_stop:>9.4f} {'[OK]' if match else '[NG]***':^6}")
 
 # ══════════════════════════════════════════════════════════════════════════════
+# [2b] 앱 카드 검증 — RS universe 일치 + TOP5 순위 일치
+# ══════════════════════════════════════════════════════════════════════════════
+print(f"\n[2b] 앱 카드 검증 (RS universe & TOP5 순위)")
+
+# ── 앱과 production의 SKIP 종목 비교 ──────────────────────────────────────────
+print(f"\n  [SKIP 종목 비교]  기준: 30행 미만 또는 FDR 로드 실패")
+print(f"  {'종목':<32} {'DB 포함':^8} {'앱 포함':^8} {'일치':^6}")
+print(f"  {'-'*55}")
+
+app_rs = {}     # 앱 RS 시뮬레이션 결과
+universe_ok = True
+
+for name, code in name_to_fdr.items():
+    in_db  = name in db_rows   # production DB에 있는지
+
+    # 앱과 동일한 조건으로 로드 (30행 미만 SKIP)
+    df_app = load_ticker(code, start=start_dt)
+    if df_app is not None:
+        df_app = df_app[df_app['date'] <= pd.Timestamp(REVIEW_DATE)].reset_index(drop=True)
+    in_app = df_app is not None and len(df_app) >= 30
+
+    match = (in_db == in_app)
+    if not match:
+        universe_ok = False
+    mark = '[OK]' if match else '[NG]***'
+
+    # 앱 RS 계산 (포함 종목만)
+    if in_app:
+        df_app['mfi'] = calculate_mfi(df_app)
+        df_app['intraday_intensity'] = calculate_intraday_intensity(df_app)
+        df_app_idx = df_app.set_index('date')
+        regime_app = regime_series.reindex(df_app_idx.index).fillna(False)
+        sig_app = build_signals_and_targets(
+            df_app.copy(), ticker_name=name,
+            is_bull_market=regime_app, turbo_discount=0.4
+        )
+        app_rs[name] = float(sig_app.iloc[-1]['composite_rs'])
+
+    db_sym  = 'O' if in_db  else 'X'
+    app_sym = 'O' if in_app else 'X'
+    print(f"  {name:<32} {db_sym:^8} {app_sym:^8} {mark:^6}")
+
+# ── TOP5 순위 비교 ─────────────────────────────────────────────────────────────
+print(f"\n  [TOP5 순위 비교]")
+print(f"  {'순위':<4} {'DB 종목':<32} {'앱 종목':<32} {'일치':^6}")
+print(f"  {'-'*75}")
+
+db_top5  = [name for name, _ in sorted(db_rows.items(), key=lambda x: x[1].get('composite_rs', 0), reverse=True)[:5]]
+app_top5 = [name for name, _ in sorted(app_rs.items(), key=lambda x: x[1], reverse=True)[:5]]
+
+top5_ok = True
+for i in range(5):
+    db_name  = db_top5[i]  if i < len(db_top5)  else '-'
+    app_name = app_top5[i] if i < len(app_top5) else '-'
+    match    = (db_name == app_name)
+    if not match:
+        top5_ok = False
+    print(f"  {i+1:<4} {db_name:<32} {app_name:<32} {'[OK]' if match else '[NG]***':^6}")
+
+print(f"\n  universe 일치: {'[OK]' if universe_ok else '[NG]***'}  |  TOP5 순위 일치: {'[OK]' if top5_ok else '[NG]***'}")
+
+# ══════════════════════════════════════════════════════════════════════════════
 # [3] live_trades 체결 내역
 # ══════════════════════════════════════════════════════════════════════════════
 print(f"\n[3] live_trades 체결 내역 (execute_date={EXECUTE_DATE})")
@@ -418,6 +480,7 @@ if pos:
     else:
         print(f"  ✅ Hard Stop:        미발동 (전 종목 안전)")
 
+print(f"  [2b] 카드 검증:      universe={'[OK]' if universe_ok else '[NG]***'}  TOP5={'[OK]' if top5_ok else '[NG]***'}")
 print(f"  K200 레짐:           {'불장' if is_bull else '안정장'} (Z={z_score:.3f})")
 print(f"  turbo_discount=0.4:  {'활성 (불장중)' if is_bull else '대기중 (안정장)'}")
 print(SEP)

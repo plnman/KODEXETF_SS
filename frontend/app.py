@@ -179,10 +179,12 @@ def load_live_signals_only():
     for tk, name in ETFS.items():
         df = get_single_ticker_data(tk, name, start_date, None)
         if df is None: continue
-        df_sync = df.set_index('date').reindex(k200.set_index('date').index).reset_index().ffill().fillna(0)
-        df_sync = df_sync.drop_duplicates(subset=['date'])
-        regime_aligned = regime.reindex(df_sync.set_index('date').index).fillna(True)
-        sig = build_signals_and_targets(df_sync, ticker_name=name, is_bull_market=regime_aligned, turbo_discount=0.4)
+        # [V3.9.1] production/백테스터와 동일: 각 종목 자체 날짜 그대로 사용 (K200 reindex+ffill 제거)
+        # K200 reindex+ffill은 신규 ETF 상장 전 날짜를 가짜로 채워 rs_20 계산을 오염시킴
+        df = df.drop_duplicates(subset=['date'])
+        # [V3.9.1] fillna(False): 레짐 미확인 날짜는 안정장으로 처리 (백테스터/production 동일)
+        regime_aligned = regime.reindex(df.set_index('date').index).fillna(False)
+        sig = build_signals_and_targets(df, ticker_name=name, is_bull_market=regime_aligned, turbo_discount=0.4)
         all_signals[name] = sig
 
     is_bull_now = bool(regime.iloc[-1]) if not regime.empty else False
@@ -215,7 +217,7 @@ def get_single_ticker_data(tk, name, start_date, end_date):
     try:
         clean_tk = tk.replace(".KS", "").replace(".KQ", "")
         df = fdr.DataReader(clean_tk, start=start_date, end=end_date)
-        if df.empty: return None
+        if df.empty or len(df) < 30: return None  # production과 동일 기준 (30행 미만 SKIP)
         
         if isinstance(df.columns, pd.MultiIndex): df.columns = df.columns.get_level_values(0)
         df.columns = [str(c).lower() for c in df.columns]
