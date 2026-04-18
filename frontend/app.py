@@ -918,8 +918,6 @@ def main():
                 live_df['실전 수익률(%)'] = (live_df['total_value'] / LIVE_START_CAPITAL - 1) * 100
                 live_df = live_df.set_index('date')
 
-                # 실전 매매 이력 테이블
-                trade_res = supabase.table('live_trades').select('*').order('execute_date', desc=True).limit(50).execute()
                 col_chart, col_stats = st.columns([2, 1])
                 with col_chart:
                     st.line_chart(live_df[['실전 수익률(%)']])
@@ -930,18 +928,6 @@ def main():
                     st.metric("현재 포트폴리오 가치", f"{last_val:,.0f}원")
                     st.metric("누적 수익률", f"{last_ret:+.2f}%")
                     st.metric("운용 기간", f"{n_days}일")
-
-                # 실전 체결 이력
-                st.subheader("📋 실전 매매 체결 이력")
-                if trade_res.data:
-                    trade_df = pd.DataFrame(trade_res.data)
-                    trade_df = trade_df[['execute_date','signal_date','ticker','action','execute_price','units','amount']]
-                    trade_df.columns = ['체결일','신호일','종목','매매','체결가','수량','금액']
-                    trade_df['체결가'] = trade_df['체결가'].apply(lambda x: f"{x:,.0f}원")
-                    trade_df['금액']   = trade_df['금액'].apply(lambda x: f"{x:,.0f}원")
-                    st.dataframe(trade_df, use_container_width=True, hide_index=True)
-                else:
-                    st.info("아직 체결 기록이 없습니다. 첫 매매 신호 발생 익일 09시 이후 자동 기록됩니다.")
             else:
                 st.info("🕐 실전 포트폴리오 데이터 없음 — 오늘 16:10 KST 첫 기록 예정.")
         except Exception as e:
@@ -952,27 +938,54 @@ def main():
 
         st.divider()
 
+        # ── 실제 체결 이력 ────────────────────────────────────────────────────
+        st.subheader("📋 실제 체결 이력 (BUY/EXIT 실행)")
+        try:
+            trade_res2 = supabase.table('live_trades').select('*').order('execute_date', desc=True).limit(100).execute()
+            if trade_res2.data:
+                trade_df2 = pd.DataFrame(trade_res2.data)
+                trade_df2 = trade_df2[['execute_date','signal_date','ticker','action','execute_price','units','amount']]
+                trade_df2['execute_price'] = trade_df2['execute_price'].apply(lambda x: f"{x:,.0f}")
+                trade_df2['amount']        = trade_df2['amount'].apply(lambda x: f"{x:,.0f}")
+                trade_df2['action']        = trade_df2['action'].map({
+                    'BUY': '✅ BUY', 'EXIT': '🔴 EXIT',
+                    'EXIT_SWITCH': '🔄 EXIT(스위칭)', 'EXIT_HARDSTOP': '🛑 EXIT(손절)'
+                }).fillna(trade_df2['action'])
+                trade_df2.columns = ['체결일','신호일','종목','액션','체결가','수량','금액']
+                st.dataframe(trade_df2, use_container_width=True, hide_index=True)
+            else:
+                st.info("아직 체결 기록이 없습니다.")
+        except Exception as e:
+            st.error(f"체결 이력 조회 실패: {e}")
+
         st.divider()
 
-        # [Fix 3-B] 종목별 시그널 이력
-        st.subheader("📡 종목별 시그널 이력 (BUY/EXIT 발생 기록)")
+        # ── 매수조건 충족 이력 ────────────────────────────────────────────────
+        st.subheader("📡 매수조건 충족 이력 (미체결 포함 · daily_signals 기반)")
+        st.caption("buy_signal=True는 c1~c4 조건 충족을 의미하며, 현금 부족·포지션 보유 등으로 실제 매수가 발생하지 않을 수 있습니다.")
         try:
-            sig_res = supabase.table('daily_signals').select('*').order('signal_date', desc=True).limit(100).execute()
+            sig_res = supabase.table('daily_signals').select('*').order('signal_date', desc=True).limit(500).execute()
             if sig_res.data:
                 sig_df = pd.DataFrame(sig_res.data)
                 sig_df = sig_df[['signal_date','ticker','close','target_break_price','composite_rs','buy_signal','exit_signal','mfi']]
-                show_buy_only = st.checkbox("BUY 시그널 발생 종목만 보기", value=False)
-                if show_buy_only:
-                    sig_df = sig_df[sig_df['buy_signal'] == True]
-                st.dataframe(sig_df, use_container_width=True, hide_index=True)
+                sig_df = sig_df[sig_df['buy_signal'] | sig_df['exit_signal']].copy()
+
+                sig_df['buy_signal']         = sig_df['buy_signal'].map({True: '✅ BUY조건', False: '-'})
+                sig_df['exit_signal']        = sig_df['exit_signal'].map({True: '🔴 EXIT조건', False: '-'})
+                sig_df['close']              = sig_df['close'].apply(lambda x: f"{x:,.0f}")
+                sig_df['target_break_price'] = sig_df['target_break_price'].apply(lambda x: f"{x:,.0f}")
+                sig_df['composite_rs']       = sig_df['composite_rs'].apply(lambda x: f"{x:.4f}")
+                sig_df['mfi']                = sig_df['mfi'].apply(lambda x: f"{x:.1f}")
+                sig_df.columns = ['날짜','종목','종가','돌파목표가','RS','매수조건','청산조건','MFI']
+
+                if sig_df.empty:
+                    st.info("🕐 아직 조건 충족 이력이 없습니다.")
+                else:
+                    st.dataframe(sig_df, use_container_width=True, hide_index=True)
             else:
-                st.info("🕐 아직 기록된 시그널이 없습니다. 오늘 오후 4시 이후 자동 적재됩니다.")
+                st.info("🕐 아직 기록된 시그널이 없습니다.")
         except Exception as e:
-            err_str = str(e)
-            if 'PGRST205' in err_str or 'daily_signals' in err_str:
-                st.warning("🛠️ DB 테이블이 아직 생성되지 않았습니다. Supabase에서 `daily_signals` 테이블을 생성하면 자동 적재됩니다.")
-            else:
-                st.error(f"시그널 이력 조회 실패: {e}")
+            st.error(f"시그널 이력 조회 실패: {e}")
 
 if __name__ == "__main__":
     main()
