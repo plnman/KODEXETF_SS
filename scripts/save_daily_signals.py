@@ -50,7 +50,8 @@ from engine.strategy import build_signals_and_targets, get_market_regime
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 LOOKBACK_DAYS    = 500
 INITIAL_CAPITAL  = 50_000_000.0
-MAX_POSITIONS    = 10                # [V3.8.1] 백테스팅 확정 10종목 고정
+SWITCH_THRESHOLD = 10                # RS TOP N 이탈 시 EXIT — 백테스팅 확정값 (수익률 513.34%)
+MAX_POSITIONS    = 1                 # 실전 최대 보유 종목 수 — 몰빵 설계 (잔돈 매수 차단)
 KST              = pytz.timezone('Asia/Seoul')
 now_kst          = datetime.now(KST)
 TODAY_STR        = now_kst.strftime("%Y-%m-%d")
@@ -198,7 +199,7 @@ def task2_record_executions():
 
     # RS 순위 계산 (전날 신호 기준)
     rs_sorted = sorted(all_signals_list, key=lambda x: float(x.get('composite_rs') or 0), reverse=True)
-    top_n_tickers = {r['ticker'] for r in rs_sorted[:MAX_POSITIONS]}
+    top_n_tickers = {r['ticker'] for r in rs_sorted[:SWITCH_THRESHOLD]}
 
     # BUY 후보: RS 내림차순, EXIT 후보: 전체
     buy_candidates  = [r for r in rs_sorted if r.get('buy_signal')]
