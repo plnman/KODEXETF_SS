@@ -453,7 +453,7 @@ def main():
             for r in (trades_res.data or []):
                 if r['action'] == 'BUY':
                     pos[r['ticker']] = True
-                elif r['action'] == 'EXIT':
+                elif r['action'] in ('EXIT', 'EXIT_SWITCH', 'EXIT_HARDSTOP'):
                     pos.pop(r['ticker'], None)
             held_names = set(pos.keys())
         except Exception:
@@ -476,13 +476,16 @@ def main():
         except Exception:
             pass
 
-        # 3) 카드 목록 = TOP 5 RS 고정 (보유/매수대기가 top5 밖이면 보유섹션에서 별도 표시)
-        card_list = top5_names
+        # 3) 카드 목록 = TOP 5 RS + 보유 종목 (TOP 5 밖이어도 항상 포함)
+        card_list = list(top5_names)
+        for h in held_names:
+            if h not in card_list:
+                card_list.append(h)   # 보유 종목은 순위 무관하게 카드에 추가
 
         NAME_TO_TICKER = {v: k for k, v in ETFS_CLEAN.items()}  # [V3.8.0] .KS 제거된 clean code 사용
 
         # 범례
-        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS 고정 표시 | 보유 종목은 하단 섹션 참조")
+        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS 고정 표시 | 보유 종목은 순위 무관 항상 표시")
 
         cols_per_row = 3
         def ck(b): return "✅" if b else "❌"
