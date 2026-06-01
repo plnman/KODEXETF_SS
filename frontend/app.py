@@ -14,7 +14,6 @@ importlib.reload(strategy)
 
 from engine.strategy import build_signals_and_targets, get_market_regime, TICKER_PARAMS
 from analytics.portfolio_backtester import run_portfolio_backtest
-from analytics.backtester import run_vectorized_backtest
 from data_collector.daily_scraper import calculate_mfi, calculate_intraday_intensity, TARGET_ETFS, verify_dual_source_integrity, verify_tickers
 from analytics.integrity_monitor import log_backtest_integrity
 from config.etf_universe import ETFS_CLEAN
