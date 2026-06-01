@@ -475,16 +475,19 @@ def main():
         except Exception:
             pass
 
-        # 3) 카드 목록 = TOP 5 RS + 보유 종목 (TOP 5 밖이어도 항상 포함)
+        # 3) 카드 목록 = TOP 5 RS + 보유 종목 + 매수 대기 종목 (순위 무관 항상 표시)
         card_list = list(top5_names)
         for h in held_names:
             if h not in card_list:
                 card_list.append(h)   # 보유 종목은 순위 무관하게 카드에 추가
+        for p in pending_buy_names:
+            if p not in card_list:
+                card_list.append(p)   # 매수 대기 종목도 TOP 5 밖이어도 카드에 추가
 
         NAME_TO_TICKER = {v: k for k, v in ETFS_CLEAN.items()}  # [V3.8.0] .KS 제거된 clean code 사용
 
         # 범례
-        st.caption(f"🔵 보유중 | 🟡 매수 대기(오늘 시가 매수 예정) | TOP 5 RS 고정 표시 | 보유 종목은 순위 무관 항상 표시")
+        st.caption(f"🔵 보유중 | ⏰ 매수 대기(전일 신호·오늘 시가 매수 예정) | TOP 5 RS 고정 표시 | 보유·대기 종목은 순위 무관 항상 표시")
 
         cols_per_row = 3
         def ck(b): return "✅" if b else "❌"
